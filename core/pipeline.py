@@ -33,6 +33,7 @@ class AnalysisResult:
 
     global_bpm: float = 0.0
     used_demucs: bool = False
+    demucs_warning: str = ""
 
     @property
     def beat_count(self) -> int:
@@ -89,6 +90,7 @@ class Pipeline:
         check()
 
         used_demucs = False
+        demucs_warning = ""
         y_analysis = y
 
         if o["use_demucs"]:
@@ -102,7 +104,9 @@ class Pipeline:
                 y_analysis = normalize(y_drums, o["peak_db"])
                 used_demucs = True
             except Exception as exc:
-                log.warning("Demucs 失敗 (%s)，改用全混音分析", exc)
+                demucs_warning = f"Demucs 分離失敗，已改用原始混音進行分析（原因：{exc}）"
+                log.warning(demucs_warning)
+                report(0.08, "Demucs 失敗，改用原始混音…")
                 y_analysis = y
         check()
 
@@ -141,6 +145,7 @@ class Pipeline:
             downbeats=np.asarray(downbeats, dtype=int),
             global_bpm=global_bpm(bpm_smooth),
             used_demucs=used_demucs,
+            demucs_warning=demucs_warning,
         )
 
         report(1.0, "分析完成 ✓")

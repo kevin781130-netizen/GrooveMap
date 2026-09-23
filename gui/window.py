@@ -60,6 +60,8 @@ class GrooveMapApp:
         r2.pack(fill="x", padx=8, pady=(0, 8))
         self.demucs_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(r2, text="使用 Demucs 分離鼓軌（較慢）", variable=self.demucs_var).pack(side="left")
+        ttk.Label(r2, text="首次使用需保持網路連線以下載模型（約數百 MB）",
+                  foreground="#888888").pack(side="left", padx=(10, 0))
 
         act = ttk.Frame(main)
         act.pack(fill="x", **pad)
@@ -136,8 +138,15 @@ class GrooveMapApp:
         out_dir = filedialog.askdirectory(title="選擇 MIDI 輸出資料夾")
         if not out_dir:
             return
+        if not os.access(out_dir, os.W_OK):
+            messagebox.showerror("GrooveMap",
+                f"沒有寫入權限：\n{out_dir}\n\n請選擇其他資料夾（避免系統保護的目錄，如 C 槽根目錄）。")
+            return
         try:
             files = export_cubase_bundle(self.result, out_dir, base)
+        except PermissionError as exc:
+            messagebox.showerror("GrooveMap", f"匯出失敗（權限不足）：\n{exc}\n\n請選擇其他資料夾。")
+            return
         except Exception as exc:
             messagebox.showerror("GrooveMap", f"匯出失敗：\n{exc}")
             return
@@ -170,6 +179,9 @@ class GrooveMapApp:
         self.progress["value"] = 1000
         self.status_var.set("分析完成 ✓")
 
+        if result.demucs_warning:
+            messagebox.showwarning("GrooveMap", result.demucs_warning)
+
         s = result.summary()
         lines = [
             f"檔案名稱 : {s['檔案']}",
@@ -179,6 +191,10 @@ class GrooveMapApp:
             f"小節數   : {s['小節數']}",
             f"拍號     : {s['拍號']}",
             f"Demucs   : {s['Demucs']}",
+        ]
+        if result.demucs_warning:
+            lines.append(f"⚠ {result.demucs_warning}")
+        lines += [
             "",
             "── 前 12 拍（秒 / BPM）──",
         ]
