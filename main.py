@@ -87,7 +87,8 @@ def run_cli(args) -> int:
     print("  ── 輸出檔案 ─────────────────────────────")
     for k, v in files.items():
         print(f"    {k:8s} → {v}")
-    print("\n  在 Cubase 匯入 *_Cubase.mid 即可。\n")
+    print("\n  Tempo Track：在 Cubase 匯入 *_MasterTrack.smt")
+    print("  Click/Marker：匯入 *_Cubase.mid\n")
     return 0
 
 

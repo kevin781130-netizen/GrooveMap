@@ -18,6 +18,17 @@ for pkg in [
     except Exception:
         pass
 
+# 部分套件的底層模組無法被 collect_all 完全掃到，明確補上避免啟動時 ModuleNotFoundError
+hiddenimports += [
+    "scipy.special.cython_special",
+    "sklearn.utils._typedefs",
+    "librosa.core.audio",
+    "tkinter",
+    "tkinter.filedialog",
+    "tkinter.messagebox",
+    "tkinter.ttk",
+]
+
 a = Analysis(
     ["main.py"],
     pathex=[],

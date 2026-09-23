@@ -19,6 +19,15 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 python -m pip install pyinstaller
 
+set INCLUDE_DEMUCS=N
+set /p INCLUDE_DEMUCS="是否安装 Demucs 鼓轨分离功能？(会让 EXE 体积暴增至 2GB+，需要网络下载 torch) [y/N]: "
+if /i "%INCLUDE_DEMUCS%"=="y" (
+    echo   -^> 安装 requirements-demucs.txt...
+    python -m pip install -r requirements-demucs.txt
+) else (
+    echo   -^> 跳过 Demucs，打包后 GUI 中勾选「使用 Demucs」将显示无法使用的警告。
+)
+
 echo [3/5] 清理旧输出...
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
