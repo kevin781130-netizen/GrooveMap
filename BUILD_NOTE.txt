@@ -1,0 +1,4 @@
+GrooveMap / AutoTempoLive project package
+
+此資料夾由提供的完整程式碼文件整理建立。
+下一步可安裝依賴後執行 build.bat 進行 Windows 打包。
