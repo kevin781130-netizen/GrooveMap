@@ -31,6 +31,18 @@ GOOD_AVG_MS = 5.0        # 良好
 MAX_ERROR_MS = 20.0      # 任何單拍誤差超過這個值就不能接受
 MIN_CONFIDENCE = 0.35    # 低於此信心值的拍子不會被升格成 Tempo Control Point
 
+# Adaptive Density Control（規格 P4）：Sparse/Balanced/Detailed 對應的
+# (平均誤差門檻, 單拍誤差門檻, 最大節點數) 預設值。Balanced 是預設，
+# 5 分鐘 Live 錄音（約 300~600 拍）在 max_nodes=100 的限制下仍要求
+# avg <= 10ms；如果音檔真的太密集達不到，會如實回報 capped=True，
+# 不會為了硬湊點數上限而假裝達標。
+DENSITY_PRESETS = {
+    "sparse":   dict(target_avg_ms=15.0, max_error_ms=30.0, max_nodes=40),
+    "balanced": dict(target_avg_ms=10.0, max_error_ms=20.0, max_nodes=100),
+    "detailed": dict(target_avg_ms=5.0,  max_error_ms=10.0, max_nodes=400),
+}
+DEFAULT_DENSITY = "balanced"
+
 
 @dataclass
 class TempoControlPoint:
@@ -47,6 +59,7 @@ class AccuracyReport:
     max_error_ms: float = 0.0
     num_points: int = 0
     num_beats: int = 0
+    capped: bool = False  # True = 因為撞到 max_nodes 上限而停止，門檻可能未達標
 
     @property
     def density_label(self) -> str:
@@ -61,11 +74,11 @@ class AccuracyReport:
 
     @property
     def quality_label(self) -> str:
-        if self.avg_error_ms <= GOOD_AVG_MS:
-            return "良好"
-        if self.avg_error_ms <= TARGET_AVG_MS:
-            return "可接受"
-        return "不合格"
+        label = "良好" if self.avg_error_ms <= GOOD_AVG_MS else (
+            "可接受" if self.avg_error_ms <= TARGET_AVG_MS else "不合格")
+        if self.capped and self.avg_error_ms > TARGET_AVG_MS:
+            label += "（受節點上限限制）"
+        return label
 
     def summary(self) -> dict:
         return {
@@ -126,14 +139,21 @@ def reduce_tempo_curve(
     target_avg_ms: float = TARGET_AVG_MS,
     max_error_ms: float = MAX_ERROR_MS,
     min_confidence: float = MIN_CONFIDENCE,
+    max_nodes: Optional[int] = None,
 ) -> Tuple[List[TempoControlPoint], AccuracyReport]:
     """把 Beat Position Layer 的逐拍 TempoEvent 縮減成較少的 Tempo Control
     Point，並保證縮減後的曲線通過 Accuracy Validation（見模組 docstring）。
 
-    演算法：從只保留頭尾兩個控制點開始，每次找出目前預測誤差最大的拍子，
-    把離它最近、信心足夠、尚未被選中的拍子升格為新控制點，重新驗證，直到
-    平均誤差與最大誤差都在門檻內，或已經沒有更多合格拍子可加（此時退回
-    全密度，等同每拍一個控制點，誤差趨近於零）。
+    演算法：
+      1. 從只保留頭尾兩個控制點開始（等同先假設整段是穩定區域）。
+      2. 每一輪找出目前預測誤差最大的拍子（= 局部 BPM variance 最大處），
+         把離它最近、信心足夠、尚未被選中的拍子升格為新控制點。
+      3. 重新驗證（Beat Reconstruction Validation），直到平均/最大誤差都
+         在門檻內。
+      4. 如果設了 max_nodes，一旦節點數碰到上限就停止（不會為了硬湊點數
+         上限而假裝達標——AccuracyReport.capped 會誠實標示還沒達標）；
+         沒設 max_nodes 時，最壞情況會退回全密度（每拍一個控制點），
+         保證誤差趨近於零。
     """
     n = len(events)
     if n == 0:
@@ -189,14 +209,19 @@ def reduce_tempo_curve(
     cps, report, errors_ms = _build(selected)
 
     guard = 0
+    capped = False
     while (report.avg_error_ms > target_avg_ms or report.max_error_ms > max_error_ms) and guard < n:
+        if max_nodes is not None and len(selected) >= max_nodes:
+            capped = True
+            break
+
         guard += 1
         worst_i = int(np.argmax(errors_ms))
 
         candidates = sorted(eligible - set(selected))
         if not candidates:
             # 合格拍子都用完了 → 只好連低信心的拍子也一起加入，
-            # 最終保證能達到全密度（誤差趨近浮點捨入等級）
+            # 最終保證能達到全密度（誤差趨近浮點捨入等級），除非撞到 max_nodes
             candidates = sorted(set(range(n)) - set(selected))
             if not candidates:
                 break
@@ -205,9 +230,39 @@ def reduce_tempo_curve(
         selected = sorted(set(selected) | {best})
         cps, report, errors_ms = _build(selected)
 
+    report.capped = capped
+
     log.info(
-        "Tempo Curve 縮減完成：%d/%d 控制點（%s density），avg=%.1fms max=%.1fms",
+        "Tempo Curve 縮減完成：%d/%d 控制點（%s density%s），avg=%.1fms max=%.1fms",
         report.num_points, report.num_beats, report.density_label,
+        "，撞到 max_nodes 上限" if capped else "",
         report.avg_error_ms, report.max_error_ms,
     )
     return cps, report
+
+
+def reduce_tempo_curve_with_density(
+    events: Sequence[TempoEvent],
+    confidences: Optional[Sequence[float]] = None,
+    ppq: int = 960,
+    density: str = DEFAULT_DENSITY,
+    max_nodes: Optional[int] = None,
+    min_confidence: float = MIN_CONFIDENCE,
+) -> Tuple[List[TempoControlPoint], AccuracyReport]:
+    """Adaptive Density Control 的入口：用 Sparse/Balanced/Detailed 預設值
+    呼叫 reduce_tempo_curve。max_nodes 有給的話覆蓋 preset 預設的節點上限
+    （對應 GUI 的「Maximum Tempo Nodes」欄位）。
+    """
+    preset = dict(DENSITY_PRESETS.get(density, DENSITY_PRESETS[DEFAULT_DENSITY]))
+    if max_nodes is not None:
+        preset["max_nodes"] = max_nodes
+
+    return reduce_tempo_curve(
+        events,
+        confidences=confidences,
+        ppq=ppq,
+        target_avg_ms=preset["target_avg_ms"],
+        max_error_ms=preset["max_error_ms"],
+        max_nodes=preset["max_nodes"],
+        min_confidence=min_confidence,
+    )

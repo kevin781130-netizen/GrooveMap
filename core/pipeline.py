@@ -12,7 +12,9 @@ from analyzer.downbeat import detect_downbeats
 from analyzer.tempo import compute_tempo_curve, global_bpm
 from processor.smoother import smooth_tempo
 from core.tempo_events import build_tempo_events
-from core.tempo_curve import reduce_tempo_curve, TempoControlPoint, AccuracyReport
+from core.tempo_curve import (
+    reduce_tempo_curve_with_density, TempoControlPoint, AccuracyReport, DEFAULT_DENSITY,
+)
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +42,8 @@ class AnalysisResult:
     # bpm_raw）才是 Click/Marker 用的 Ground Truth，不受這裡影響。
     tempo_control_points: List[TempoControlPoint] = field(default_factory=list)
     accuracy_report: Optional[AccuracyReport] = None
+    tempo_density: str = DEFAULT_DENSITY
+    max_tempo_nodes: Optional[int] = None
 
     global_bpm: float = 0.0
     used_demucs: bool = False
@@ -76,6 +80,7 @@ DEFAULTS = dict(
     sr=44100, hop_length=512, start_bpm=120.0, tightness=100.0,
     beats_per_bar=4, smooth_window=5, smooth_strength=0.6,
     smooth_method="median+mean", use_demucs=False, device=None, peak_db=-1.0,
+    tempo_density=DEFAULT_DENSITY, max_tempo_nodes=None,
 )
 
 
@@ -155,8 +160,9 @@ class Pipeline:
         report(0.90, "Tempo Curve Layer 縮減 + Accuracy Validation…")
         from exporter.midi import PPQ as MIDI_PPQ
         beat_position_events = build_tempo_events(beat_times, bpm_raw)
-        tempo_control_points, accuracy_report = reduce_tempo_curve(
-            beat_position_events, confidences=beat_confidence, ppq=MIDI_PPQ)
+        tempo_control_points, accuracy_report = reduce_tempo_curve_with_density(
+            beat_position_events, confidences=beat_confidence, ppq=MIDI_PPQ,
+            density=o["tempo_density"], max_nodes=o["max_tempo_nodes"])
         check()
 
         report(0.94, "整理結果…")
@@ -170,6 +176,8 @@ class Pipeline:
             downbeats=np.asarray(downbeats, dtype=int),
             tempo_control_points=tempo_control_points,
             accuracy_report=accuracy_report,
+            tempo_density=o["tempo_density"],
+            max_tempo_nodes=o["max_tempo_nodes"],
             global_bpm=global_bpm(bpm_raw),
             used_demucs=used_demucs,
             demucs_warning=demucs_warning,

@@ -9,6 +9,7 @@ from tkinter import ttk, filedialog, messagebox
 
 from core.pipeline import Pipeline, AnalysisResult
 from core.tempo_factor import apply_tempo_factor
+from core.alignment import apply_alignment, MIN_OFFSET_MS, MAX_OFFSET_MS
 from exporter.midi import export_cubase_bundle
 
 
@@ -17,6 +18,12 @@ class GrooveMapApp:
         ("44.1 kHz（標準，預設）", 44100),
         ("48 kHz / 24bit（Live 錄音常用）", 48000),
         ("22.05 kHz（快速分析）", 22050),
+    ]
+
+    DENSITY_LABELS = [
+        ("Sparse（少量控制點）", "sparse"),
+        ("Balanced（預設，平衡）", "balanced"),
+        ("Detailed（保留較多細節）", "detailed"),
     ]
 
     def __init__(self, root):
@@ -78,6 +85,17 @@ class GrooveMapApp:
         ttk.Combobox(r3, width=26, state="readonly", textvariable=self.sr_var,
                      values=[label for label, _ in self.SR_PRESETS]).pack(side="left", padx=(4, 0))
 
+        ttk.Label(r3, text="Tempo Density:").pack(side="left", padx=(18, 0))
+        self.density_var = tk.StringVar(value=self.DENSITY_LABELS[1][0])
+        ttk.Combobox(r3, width=22, state="readonly", textvariable=self.density_var,
+                     values=[label for label, _ in self.DENSITY_LABELS]).pack(side="left", padx=(4, 0))
+
+        r3b = ttk.Frame(box2)
+        r3b.pack(fill="x", padx=8, pady=(0, 8))
+        ttk.Label(r3b, text="Max Tempo Nodes（0 = 用 Density 預設值）:").pack(side="left")
+        self.max_nodes_var = tk.StringVar(value="0")
+        ttk.Spinbox(r3b, from_=0, to=2000, width=6, textvariable=self.max_nodes_var).pack(side="left", padx=(4, 0))
+
         r4 = ttk.Frame(box2)
         r4.pack(fill="x", padx=8, pady=(0, 8))
         ttk.Label(r4, text="Tempo 校正:").pack(side="left")
@@ -86,9 +104,31 @@ class GrooveMapApp:
             r4, width=16, state="readonly", textvariable=self.tempo_factor_var,
             values=["1x（原始偵測）", "2x（Double Tempo）", "0.5x（Half Tempo）"])
         self.tempo_factor_combo.pack(side="left", padx=(4, 10))
-        self.tempo_factor_combo.bind("<<ComboboxSelected>>", self._on_tempo_factor_changed)
+        self.tempo_factor_combo.bind("<<ComboboxSelected>>", lambda e: self._recompute_result())
         ttk.Label(r4, text="分析完成後才能切換，依耳朵判斷偵測是否抓成雙倍/一半速度",
                   foreground="#888888").pack(side="left")
+
+        box2b = ttk.LabelFrame(main, text="2b. Bar Alignment（分析完成後可調整）")
+        box2b.pack(fill="x", **pad)
+        r5 = ttk.Frame(box2b)
+        r5.pack(fill="x", padx=8, pady=(8, 4))
+        ttk.Label(r5, text="First Beat Offset (ms):").pack(side="left")
+        self.offset_var = tk.IntVar(value=0)
+        offset_scale = ttk.Scale(r5, from_=MIN_OFFSET_MS, to=MAX_OFFSET_MS, orient="horizontal",
+                                  variable=self.offset_var, length=220,
+                                  command=lambda v: self._on_offset_dragging())
+        offset_scale.pack(side="left", padx=(4, 8))
+        offset_scale.bind("<ButtonRelease-1>", lambda e: self._recompute_result())
+        self.offset_label_var = tk.StringVar(value="0 ms")
+        ttk.Label(r5, textvariable=self.offset_label_var, width=8).pack(side="left")
+
+        r6 = ttk.Frame(box2b)
+        r6.pack(fill="x", padx=8, pady=(0, 8))
+        ttk.Label(r6, text='指定 "This is Bar 1 Beat 1"（輸入結果列表裡的 #beat 編號）:').pack(side="left")
+        self.manual_downbeat_var = tk.StringVar(value="")
+        ttk.Entry(r6, width=6, textvariable=self.manual_downbeat_var).pack(side="left", padx=(4, 8))
+        ttk.Button(r6, text="套用", command=self._recompute_result).pack(side="left")
+        ttk.Button(r6, text="清除手動指定", command=self._clear_manual_downbeat).pack(side="left", padx=(6, 0))
 
         act = ttk.Frame(main)
         act.pack(fill="x", **pad)
@@ -131,6 +171,9 @@ class GrooveMapApp:
         self.result = None
         self.analysis_result = None
         self.tempo_factor_var.set("1x（原始偵測）")
+        self.offset_var.set(0)
+        self.offset_label_var.set("0 ms")
+        self.manual_downbeat_var.set("")
         self.export_btn.config(state="disabled")
         self.analyze_btn.config(state="disabled")
         self.cancel_btn.config(state="normal")
@@ -144,6 +187,8 @@ class GrooveMapApp:
             smooth_strength=float(self.smooth_var.get()),
             use_demucs=bool(self.demucs_var.get()),
             sr=self._selected_sr(),
+            tempo_density=self._selected_density(),
+            max_tempo_nodes=self._max_nodes_override(),
         )
         self.worker = threading.Thread(target=self._run_worker, args=(path, opts), daemon=True)
         self.worker.start()
@@ -216,18 +261,50 @@ class GrooveMapApp:
 
         self._render_result(result)
 
-    def _on_tempo_factor_changed(self, _event=None):
+    def _on_offset_dragging(self):
+        self.offset_label_var.set(f"{int(self.offset_var.get())} ms")
+
+    def _clear_manual_downbeat(self):
+        self.manual_downbeat_var.set("")
+        self._recompute_result()
+
+    def _recompute_result(self, _event=None):
+        """從分析當下的原始結果開始，依序套用 Tempo 校正（Half/Double）→
+        Bar Alignment（First Beat Offset + 手動指定 Bar1 Beat1），
+        確保所有後續調整都疊在同一份 Ground Truth 上，不會互相打架。"""
         if self.analysis_result is None:
             return
+
+        result = self.analysis_result
+
         label = self.tempo_factor_var.get()
         factor = {"1x（原始偵測）": 1.0, "2x（Double Tempo）": 2.0, "0.5x（Half Tempo）": 0.5}.get(label, 1.0)
         try:
-            self.result = apply_tempo_factor(self.analysis_result, factor)
+            if factor != 1.0:
+                result = apply_tempo_factor(result, factor)
+
+            offset_ms = float(self.offset_var.get())
+            manual_beat = self._manual_downbeat_beat_number()
+            if offset_ms != 0.0 or manual_beat is not None:
+                result = apply_alignment(
+                    result, first_beat_offset_ms=offset_ms,
+                    manual_downbeat_beat_number=manual_beat)
         except Exception as exc:
-            messagebox.showerror("GrooveMap", f"套用 Tempo 校正失敗：\n{exc}")
+            messagebox.showerror("GrooveMap", f"套用校正失敗：\n{exc}")
             return
-        self.status_var.set(f"已套用 {label}")
-        self._render_result(self.result)
+
+        self.result = result
+        self.status_var.set("已套用校正")
+        self._render_result(result)
+
+    def _manual_downbeat_beat_number(self):
+        s = self.manual_downbeat_var.get().strip()
+        if not s:
+            return None
+        try:
+            return int(s)
+        except ValueError:
+            return None
 
     def _render_result(self, result):
         s = result.summary()
@@ -248,6 +325,8 @@ class GrooveMapApp:
             lines += [
                 "",
                 "── Accuracy Report ──",
+                f"  Tempo Density      : {getattr(result, 'tempo_density', 'balanced')}"
+                + (f"（Max Nodes={result.max_tempo_nodes}）" if getattr(result, "max_tempo_nodes", None) else ""),
                 f"  Average Beat Error : {ar.avg_error_ms:6.1f} ms  ({ar.quality_label})",
                 f"  Maximum Beat Error : {ar.max_error_ms:6.1f} ms",
                 f"  Tempo Points       : {ar.num_points} / {ar.num_beats}",
@@ -293,6 +372,20 @@ class GrooveMapApp:
             if l == label:
                 return sr
         return 44100
+
+    def _selected_density(self):
+        label = self.density_var.get()
+        for l, key in self.DENSITY_LABELS:
+            if l == label:
+                return key
+        return "balanced"
+
+    def _max_nodes_override(self):
+        try:
+            n = int(self.max_nodes_var.get())
+        except (TypeError, ValueError):
+            return None
+        return n if n > 0 else None
 
     @staticmethod
     def _to_float(s, default):

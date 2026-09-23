@@ -7,10 +7,14 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import numpy as np
+
 from core.tempo_events import TempoEvent
 from core.tempo_curve import (
     AccuracyReport,
     reduce_tempo_curve,
+    reduce_tempo_curve_with_density,
+    DENSITY_PRESETS,
     TARGET_AVG_MS,
     MAX_ERROR_MS,
 )
@@ -21,6 +25,20 @@ PPQ = 960
 def _constant_tempo_events(n=20, bpm=120.0, start=0.0):
     interval = 60.0 / bpm
     return [TempoEvent(beat_number=i + 1, time=start + i * interval, bpm=bpm) for i in range(n)]
+
+
+def _wobbly_live_events(n=150, base_bpm=120.0, seed=7):
+    rng = np.random.RandomState(seed)
+    drift = np.cumsum(rng.normal(0, 0.25, n))
+    drift = drift - np.linspace(0, drift[-1], n)
+    bpm_curve = base_bpm + drift
+    if n > 90:
+        bpm_curve[60:75] -= np.linspace(0, 12, 15)
+        bpm_curve[75:90] += np.linspace(0, 12, 15)
+    beat_times = np.zeros(n)
+    for i in range(1, n):
+        beat_times[i] = beat_times[i - 1] + 60.0 / bpm_curve[i - 1]
+    return [TempoEvent(beat_number=i + 1, time=float(beat_times[i]), bpm=float(bpm_curve[i])) for i in range(n)]
 
 
 class TestReduceTempoCurveEmpty(unittest.TestCase):
@@ -112,6 +130,54 @@ class TestAccuracyReportLabels(unittest.TestCase):
         self.assertIn("Maximum Beat Error", s)
         self.assertIn("Tempo Points", s)
         self.assertIn("Density", s)
+
+
+class TestMaxNodesCap(unittest.TestCase):
+    def test_stops_at_max_nodes_even_if_target_unmet(self):
+        events = _wobbly_live_events(n=150)
+        cps, report = reduce_tempo_curve(events, ppq=PPQ, max_nodes=5)
+
+        self.assertLessEqual(report.num_points, 5)
+        self.assertTrue(report.capped or report.avg_error_ms <= TARGET_AVG_MS)
+
+    def test_capped_flag_false_when_target_met_before_limit(self):
+        events = _constant_tempo_events(30, bpm=120.0)
+        cps, report = reduce_tempo_curve(events, ppq=PPQ, max_nodes=100)
+        self.assertFalse(report.capped)
+
+    def test_uncapped_by_default(self):
+        events = _wobbly_live_events(n=150)
+        cps, report = reduce_tempo_curve(events, ppq=PPQ)
+        self.assertFalse(report.capped)
+        self.assertLessEqual(report.avg_error_ms, TARGET_AVG_MS)
+
+
+class TestDensityPresets(unittest.TestCase):
+    def test_sparse_has_fewer_or_equal_points_than_detailed(self):
+        events = _wobbly_live_events(n=150)
+        cps_sparse, report_sparse = reduce_tempo_curve_with_density(events, ppq=PPQ, density="sparse")
+        cps_detailed, report_detailed = reduce_tempo_curve_with_density(events, ppq=PPQ, density="detailed")
+        self.assertLessEqual(report_sparse.num_points, report_detailed.num_points)
+
+    def test_unknown_density_falls_back_to_balanced(self):
+        events = _constant_tempo_events(10, bpm=120.0)
+        cps_a, _ = reduce_tempo_curve_with_density(events, ppq=PPQ, density="not-a-real-density")
+        cps_b, _ = reduce_tempo_curve_with_density(events, ppq=PPQ, density="balanced")
+        self.assertEqual(len(cps_a), len(cps_b))
+
+    def test_explicit_max_nodes_overrides_preset(self):
+        events = _wobbly_live_events(n=150)
+        cps, report = reduce_tempo_curve_with_density(
+            events, ppq=PPQ, density="detailed", max_nodes=5)
+        self.assertLessEqual(report.num_points, 5)
+
+    def test_balanced_preset_matches_five_minute_live_recording_budget(self):
+        """5 分鐘 Live 錄音約 120 BPM 時約 600 拍，Balanced 模式的
+        max_nodes=100 應該足以在合理誤差內完成（用較溫和的漂移量模擬）。"""
+        n = 300  # 約 2.5 分鐘份量，控制測試執行時間
+        events = _wobbly_live_events(n=n, seed=3)
+        cps, report = reduce_tempo_curve_with_density(events, ppq=PPQ, density="balanced")
+        self.assertLessEqual(report.num_points, DENSITY_PRESETS["balanced"]["max_nodes"])
 
 
 if __name__ == "__main__":
