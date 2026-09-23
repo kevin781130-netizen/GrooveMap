@@ -166,8 +166,9 @@ class GrooveMapApp:
             return
         lines = "\n".join(f"  {k:8s} →  {v}" for k, v in files.items())
         messagebox.showinfo("GrooveMap",
-            "已輸出以下 MIDI 檔：\n\n" + lines +
-            "\n\n在 Cubase 匯入 *Cubase.mid 即可。")
+            "已輸出以下檔案：\n\n" + lines +
+            "\n\nTempo Track：在 Cubase 匯入 *_MasterTrack.smt"
+            "\nClick/Marker：匯入 *_Cubase.mid")
 
     def _poll(self):
         try:

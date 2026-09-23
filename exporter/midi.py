@@ -134,12 +134,20 @@ def export_midi(beat_times, bpm_curve, downbeat_indices, out_path, **kwargs):
 
 
 def export_cubase_bundle(result, out_dir, base_name, ppq=PPQ,
-                         click_note=CLICK_NOTE, accent_note=ACCENT_NOTE, click_gate=CLICK_GATE):
+                         click_note=CLICK_NOTE, accent_note=ACCENT_NOTE, click_gate=CLICK_GATE,
+                         include_smt=True):
+    from core.tempo_events import from_result, to_dicts
+    from exporter.steinberg_smt import export_master_track
+
     os.makedirs(out_dir, exist_ok=True)
     beats = result.beat_times
     bpm = result.bpm_smooth
     dbs = result.downbeats
     bpb = result.beats_per_bar
+
+    # 唯一的 tempo 資料來源：逐拍 beat_times/bpm_smooth，跟 GUI 逐拍列表同一份數字。
+    # MIDI 與 SMT 都從這裡取值，禁止任何 exporter 改用 result.global_bpm。
+    tempo_events = from_result(result)
 
     out = {}
 
@@ -154,5 +162,9 @@ def export_cubase_bundle(result, out_dir, base_name, ppq=PPQ,
     out["tempo"]  = _save(f"{base_name}_Tempo.mid",  include_tempo=True, include_click=False, include_marker=False)
     out["click"]  = _save(f"{base_name}_Click.mid",  include_tempo=False, include_click=True, include_marker=False)
     out["marker"] = _save(f"{base_name}_Marker.mid", include_tempo=False, include_click=False, include_marker=True)
+
+    if include_smt:
+        smt_path = os.path.join(out_dir, f"{base_name}_MasterTrack.smt")
+        out["smt"] = export_master_track(to_dicts(tempo_events), smt_path, beats_per_bar=bpb)
 
     return out
