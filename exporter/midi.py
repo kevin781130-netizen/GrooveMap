@@ -65,8 +65,8 @@ def _click_track(tick_ints, downbeat_set, note=CLICK_NOTE, accent=ACCENT_NOTE, g
     for i, tick in enumerate(tick_ints):
         t = int(tick)
         n = int(accent) if i in downbeat_set else int(note)
-        events.append((t, 0, n))
-        events.append((t + gate, 1, n))
+        events.append((t, 1, n))
+        events.append((t + gate, 0, n))
 
     events.sort(key=lambda e: (e[0], e[1]))
 

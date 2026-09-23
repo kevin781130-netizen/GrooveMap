@@ -15,10 +15,17 @@ def load_audio(path: str, target_sr: int = TARGET_SR, mono: bool = True):
     sr = target_sr
     try:
         import soundfile as sf
-        data, sr = sf.read(path, always_2d=True, dtype="float32")
-        y = data.T
-    except Exception:
-        y = None
+    except ImportError:
+        sf = None
+
+    if sf is not None:
+        try:
+            data, sr = sf.read(path, always_2d=True, dtype="float32")
+            y = data.T
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("soundfile 讀取失敗: %s", exc)
+            y = None
 
     if y is None:
         import librosa

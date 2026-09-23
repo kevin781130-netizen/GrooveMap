@@ -12,6 +12,12 @@ from exporter.midi import export_cubase_bundle
 
 
 class GrooveMapApp:
+    SR_PRESETS = [
+        ("44.1 kHz（標準，預設）", 44100),
+        ("48 kHz / 24bit（Live 錄音常用）", 48000),
+        ("22.05 kHz（快速分析）", 22050),
+    ]
+
     def __init__(self, root):
         self.root = root
         self.root.title("GrooveMap  —  Live Band Tempo Mapping")
@@ -65,9 +71,10 @@ class GrooveMapApp:
 
         r3 = ttk.Frame(box2)
         r3.pack(fill="x", padx=8, pady=(0, 8))
-        self.fast_sr_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(r3, text="快速分析 (22.05kHz，適合長 Session 快速抓大框架)",
-                        variable=self.fast_sr_var).pack(side="left")
+        ttk.Label(r3, text="取樣率:").pack(side="left")
+        self.sr_var = tk.StringVar(value=self.SR_PRESETS[0][0])
+        ttk.Combobox(r3, width=26, state="readonly", textvariable=self.sr_var,
+                     values=[label for label, _ in self.SR_PRESETS]).pack(side="left", padx=(4, 0))
 
         act = ttk.Frame(main)
         act.pack(fill="x", **pad)
@@ -120,7 +127,7 @@ class GrooveMapApp:
             beats_per_bar=self._beats_per_bar(),
             smooth_strength=float(self.smooth_var.get()),
             use_demucs=bool(self.demucs_var.get()),
-            sr=22050 if self.fast_sr_var.get() else 44100,
+            sr=self._selected_sr(),
         )
         self.worker = threading.Thread(target=self._run_worker, args=(path, opts), daemon=True)
         self.worker.start()
@@ -233,6 +240,13 @@ class GrooveMapApp:
             return int(self.meter_var.get().split("/")[0])
         except Exception:
             return 4
+
+    def _selected_sr(self):
+        label = self.sr_var.get()
+        for l, sr in self.SR_PRESETS:
+            if l == label:
+                return sr
+        return 44100
 
     @staticmethod
     def _to_float(s, default):

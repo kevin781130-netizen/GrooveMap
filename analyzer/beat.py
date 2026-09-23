@@ -10,11 +10,17 @@ def detect_beats(y, sr, hop_length=512, start_bpm=120.0, tightness=100.0, refine
 
     onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop_length, aggregate=np.median)
 
-    tempo, beat_frames = librosa.beat.beat_track(
-        onset_envelope=onset_env, sr=sr, hop_length=hop_length,
-        start_bpm=float(start_bpm), tightness=float(tightness),
-        trim=False, units="frames",
-    )
+    try:
+        tempo, beat_frames = librosa.beat.beat_track(
+            onset_envelope=onset_env, sr=sr, hop_length=hop_length,
+            start_bpm=float(start_bpm), tightness=float(tightness),
+            trim=False, units="frames",
+        )
+    except TypeError:
+        tempo, beat_frames = librosa.beat.beat_track(
+            onset_envelope=onset_env, sr=sr, hop_length=hop_length,
+            start_bpm=float(start_bpm), trim=False, units="frames",
+        )
 
     beat_times = librosa.frames_to_time(beat_frames, sr=sr, hop_length=hop_length)
 
