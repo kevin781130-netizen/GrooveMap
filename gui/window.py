@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
 from core.pipeline import Pipeline, AnalysisResult
+from core.tempo_factor import apply_tempo_factor
 from exporter.midi import export_cubase_bundle
 
 
@@ -25,6 +26,7 @@ class GrooveMapApp:
         self.root.minsize(620, 500)
 
         self.result = None
+        self.analysis_result = None  # 分析出來的原始結果，套用 tempo factor 前的 Ground Truth
         self.worker = None
         self._cancel_flag = False
         self.q = queue.Queue()
@@ -76,6 +78,18 @@ class GrooveMapApp:
         ttk.Combobox(r3, width=26, state="readonly", textvariable=self.sr_var,
                      values=[label for label, _ in self.SR_PRESETS]).pack(side="left", padx=(4, 0))
 
+        r4 = ttk.Frame(box2)
+        r4.pack(fill="x", padx=8, pady=(0, 8))
+        ttk.Label(r4, text="Tempo 校正:").pack(side="left")
+        self.tempo_factor_var = tk.StringVar(value="1x（原始偵測）")
+        self.tempo_factor_combo = ttk.Combobox(
+            r4, width=16, state="readonly", textvariable=self.tempo_factor_var,
+            values=["1x（原始偵測）", "2x（Double Tempo）", "0.5x（Half Tempo）"])
+        self.tempo_factor_combo.pack(side="left", padx=(4, 10))
+        self.tempo_factor_combo.bind("<<ComboboxSelected>>", self._on_tempo_factor_changed)
+        ttk.Label(r4, text="分析完成後才能切換，依耳朵判斷偵測是否抓成雙倍/一半速度",
+                  foreground="#888888").pack(side="left")
+
         act = ttk.Frame(main)
         act.pack(fill="x", **pad)
         self.analyze_btn = ttk.Button(act, text="開始分析", command=self._analyze)
@@ -115,6 +129,8 @@ class GrooveMapApp:
 
         self._cancel_flag = False
         self.result = None
+        self.analysis_result = None
+        self.tempo_factor_var.set("1x（原始偵測）")
         self.export_btn.config(state="disabled")
         self.analyze_btn.config(state="disabled")
         self.cancel_btn.config(state="normal")
@@ -187,6 +203,7 @@ class GrooveMapApp:
         self.root.after(80, self._poll)
 
     def _on_done(self, result):
+        self.analysis_result = result
         self.result = result
         self.analyze_btn.config(state="normal")
         self.cancel_btn.config(state="disabled")
@@ -197,6 +214,22 @@ class GrooveMapApp:
         if result.demucs_warning:
             messagebox.showwarning("GrooveMap", result.demucs_warning)
 
+        self._render_result(result)
+
+    def _on_tempo_factor_changed(self, _event=None):
+        if self.analysis_result is None:
+            return
+        label = self.tempo_factor_var.get()
+        factor = {"1x（原始偵測）": 1.0, "2x（Double Tempo）": 2.0, "0.5x（Half Tempo）": 0.5}.get(label, 1.0)
+        try:
+            self.result = apply_tempo_factor(self.analysis_result, factor)
+        except Exception as exc:
+            messagebox.showerror("GrooveMap", f"套用 Tempo 校正失敗：\n{exc}")
+            return
+        self.status_var.set(f"已套用 {label}")
+        self._render_result(self.result)
+
+    def _render_result(self, result):
         s = result.summary()
         lines = [
             f"檔案名稱 : {s['檔案']}",
@@ -209,15 +242,27 @@ class GrooveMapApp:
         ]
         if result.demucs_warning:
             lines.append(f"⚠ {result.demucs_warning}")
+
+        if result.accuracy_report is not None:
+            ar = result.accuracy_report
+            lines += [
+                "",
+                "── Accuracy Report ──",
+                f"  Average Beat Error : {ar.avg_error_ms:6.1f} ms  ({ar.quality_label})",
+                f"  Maximum Beat Error : {ar.max_error_ms:6.1f} ms",
+                f"  Tempo Points       : {ar.num_points} / {ar.num_beats}",
+                f"  Density            : {ar.density_label}",
+            ]
+
         lines += [
             "",
-            "── 前 12 拍（秒 / BPM）──",
+            "── 前 12 拍（秒 / BPM，Ground Truth，未平滑）──",
         ]
         n = min(12, result.beat_count)
         dbs = set(result.downbeats.tolist())
         for i in range(n):
             t = result.beat_times[i]
-            b = result.bpm_smooth[i]
+            b = result.bpm_raw[i]
             mark = "  ▎小節" if i in dbs else ""
             lines.append(f"  #{i + 1:04d}   {t:8.3f}s    {b:7.2f} BPM{mark}")
         self._set_text("\n".join(lines))

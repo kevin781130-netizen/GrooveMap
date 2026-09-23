@@ -1,8 +1,12 @@
-"""Tempo Event 產生（規格 P2）— MIDI 與 Steinberg SMT exporter 唯一共用的資料來源。
+"""Beat Position Layer（規格 P3）— Click / Marker / Tempo Curve Layer 縮減
+演算法唯一共用的 Ground Truth 資料來源。
 
-嚴禁在匯出路徑上使用 AnalysisResult.global_bpm（那是給人看的統計摘要，
-用 median 壓成一個數字），一律用逐拍的 beat_times / bpm_smooth，確保
-匯出檔案跟 GUI 逐拍列表（#0001 1.792s 133.93 BPM ...）的數字完全一致。
+TEMPO MAP ACCURACY FIRST：Beat Detection 結果是 Ground Truth，一律用逐拍
+未經平滑的 beat_times / bpm_raw，不可被 processor/smoother.py 的任何平滑
+結果（result.bpm_smooth）污染，也嚴禁使用 result.global_bpm（那只是給人
+看的統計摘要，用 median 壓成一個數字）。這一層資料只會被拿去：
+  1. 當作 Click / Marker / 小節位置（不可被更動）
+  2. 餵給 core/tempo_curve.py 做 Tempo Curve Layer 縮減時的驗證基準
 """
 from __future__ import annotations
 
@@ -41,10 +45,11 @@ def build_tempo_events(beat_times: Sequence[float], bpm_curve: Sequence[float]) 
 
 
 def from_result(result) -> List[TempoEvent]:
-    """從 AnalysisResult 取得逐拍 tempo events。一律用 result.bpm_smooth
-    （GUI 顯示的同一份曲線），絕不使用 result.global_bpm。"""
-    events = build_tempo_events(result.beat_times, result.bpm_smooth)
-    log.info("建立 %d 筆 tempo events（逐拍，非 average）", len(events))
+    """從 AnalysisResult 取得 Beat Position Layer（逐拍 Ground Truth）。
+    一律用 result.bpm_raw（未平滑，等同每拍真實區間反推的瞬時 BPM），
+    絕不使用 result.bpm_smooth 或 result.global_bpm。"""
+    events = build_tempo_events(result.beat_times, result.bpm_raw)
+    log.info("建立 %d 筆 Beat Position Layer events（Ground Truth，非平滑）", len(events))
     return events
 
 
