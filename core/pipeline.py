@@ -15,6 +15,7 @@ from core.tempo_events import build_tempo_events
 from core.tempo_curve import (
     reduce_tempo_curve_with_density, TempoControlPoint, AccuracyReport, DEFAULT_DENSITY,
 )
+from core.anchors import Anchor
 
 log = logging.getLogger(__name__)
 
@@ -45,6 +46,13 @@ class AnalysisResult:
     tempo_density: str = DEFAULT_DENSITY
     max_tempo_nodes: Optional[int] = None
 
+    # Layer 2 Musical Alignment（規格 P5）：Human Anchor，Hard Constraint。
+    anchors: List[Anchor] = field(default_factory=list)
+    # Snap to Transient 用的 onset envelope，跟 analyzer/beat.py 偵測拍點
+    # 用的是同一份資料，存起來讓後續加 Anchor 時不必重新解碼音檔。
+    onset_envelope: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    precision_mode: bool = True
+
     global_bpm: float = 0.0
     used_demucs: bool = False
     demucs_warning: str = ""
@@ -63,6 +71,7 @@ class AnalysisResult:
 
     def summary(self) -> dict:
         s = {
+            "Precision Mode": "ON" if self.precision_mode else "OFF",
             "檔案": self.filename,
             "長度": f"{self.duration:.2f} s",
             "整體 BPM": round(self.global_bpm, 2),
@@ -70,6 +79,7 @@ class AnalysisResult:
             "小節數": self.bar_count,
             "拍號": f"{self.beats_per_bar}/4",
             "Demucs": "ON" if self.used_demucs else "OFF",
+            "Anchors": len(self.anchors),
         }
         if self.accuracy_report is not None:
             s.update(self.accuracy_report.summary())
@@ -129,7 +139,7 @@ class Pipeline:
         check()
 
         report(0.28, "Beat Detection…")
-        beat_times, bpm_hint, _onset, hop, beat_confidence = detect_beats(
+        beat_times, bpm_hint, onset_env, hop, beat_confidence = detect_beats(
             y_analysis, sr, hop_length=o["hop_length"],
             start_bpm=o["start_bpm"], tightness=o["tightness"], refine=True)
 
@@ -178,6 +188,7 @@ class Pipeline:
             accuracy_report=accuracy_report,
             tempo_density=o["tempo_density"],
             max_tempo_nodes=o["max_tempo_nodes"],
+            onset_envelope=np.asarray(onset_env, dtype=float),
             global_bpm=global_bpm(bpm_raw),
             used_demucs=used_demucs,
             demucs_warning=demucs_warning,

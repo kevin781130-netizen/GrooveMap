@@ -16,10 +16,9 @@ import logging
 import numpy as np
 
 from analyzer.tempo import compute_tempo_curve, global_bpm as _global_bpm
+from processor.tempo_scaler import VALID_MULTIPLIERS as VALID_FACTORS
 
 log = logging.getLogger(__name__)
-
-VALID_FACTORS = (0.5, 1.0, 2.0)
 
 
 def apply_tempo_factor(result, factor: float):
@@ -72,24 +71,9 @@ def apply_tempo_factor(result, factor: float):
     new_result.bpm_smooth = new_result.bpm_raw.copy()  # 僅供顯示參考，不入匯出
     new_result.global_bpm = _global_bpm(new_result.bpm_raw)
 
-    _rebuild_tempo_curve_layer(new_result)
+    # beat 數量與信心分佈都變了，必須重新跑 Tempo Curve Layer 縮減 +
+    # Accuracy Validation，不能沿用套用前的控制點。Anchor（如果有）會
+    # 用 rebuild_for_result 自動依 Anchor.time 重新對應到新的 beat index。
+    from core.tempo_curve import rebuild_for_result
+    rebuild_for_result(new_result)
     return new_result
-
-
-def _rebuild_tempo_curve_layer(result) -> None:
-    """套用 tempo factor 後，beat 數量與信心分佈都變了，必須重新跑
-    Tempo Curve Layer 縮減 + Accuracy Validation，不能沿用舊的控制點。
-    沿用 result 原本記錄的 tempo_density/max_tempo_nodes 設定，
-    確保跟一開始分析時選的密度一致，不會悄悄跑回預設值。"""
-    from core.tempo_events import build_tempo_events
-    from core.tempo_curve import reduce_tempo_curve_with_density, DEFAULT_DENSITY
-    from exporter.midi import PPQ as MIDI_PPQ
-
-    events = build_tempo_events(result.beat_times, result.bpm_raw)
-    density = getattr(result, "tempo_density", DEFAULT_DENSITY)
-    max_nodes = getattr(result, "max_tempo_nodes", None)
-    cps, report = reduce_tempo_curve_with_density(
-        events, confidences=result.beat_confidence, ppq=MIDI_PPQ,
-        density=density, max_nodes=max_nodes)
-    result.tempo_control_points = cps
-    result.accuracy_report = report

@@ -5,11 +5,13 @@ import queue
 import threading
 import traceback
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, simpledialog
 
 from core.pipeline import Pipeline, AnalysisResult
 from core.tempo_factor import apply_tempo_factor
 from core.alignment import apply_alignment, MIN_OFFSET_MS, MAX_OFFSET_MS
+from core.anchors import Anchor, make_anchor, apply_anchors, SNAP_RANGE_MS_DEFAULT
+from processor.tempo_scaler import scale_bpm
 from exporter.midi import export_cubase_bundle
 
 
@@ -34,6 +36,7 @@ class GrooveMapApp:
 
         self.result = None
         self.analysis_result = None  # 分析出來的原始結果，套用 tempo factor 前的 Ground Truth
+        self.pending_anchors = []      # 使用者目前設定的 Human Anchor list
         self.worker = None
         self._cancel_flag = False
         self.q = queue.Queue()
@@ -53,7 +56,7 @@ class GrooveMapApp:
         ttk.Button(box1, text="瀏覽…", command=self._browse).pack(side="left", padx=4, pady=8)
         ttk.Button(box1, text="清除", command=lambda: self.file_var.set("")).pack(side="left", padx=(0, 8), pady=8)
 
-        box2 = ttk.LabelFrame(main, text="2. 分析設定")
+        box2 = ttk.LabelFrame(main, text="2. 分析設定    Precision Mode: ON")
         box2.pack(fill="x", **pad)
         r1 = ttk.Frame(box2)
         r1.pack(fill="x", padx=8, pady=(8, 4))
@@ -98,15 +101,15 @@ class GrooveMapApp:
 
         r4 = ttk.Frame(box2)
         r4.pack(fill="x", padx=8, pady=(0, 8))
-        ttk.Label(r4, text="Tempo 校正:").pack(side="left")
-        self.tempo_factor_var = tk.StringVar(value="1x（原始偵測）")
+        ttk.Label(r4, text="Tempo Interpretation:").pack(side="left")
+        self.tempo_factor_var = tk.StringVar(value="Normal 1.0x")
         self.tempo_factor_combo = ttk.Combobox(
             r4, width=16, state="readonly", textvariable=self.tempo_factor_var,
-            values=["1x（原始偵測）", "2x（Double Tempo）", "0.5x（Half Tempo）"])
+            values=["Half Time 0.5x", "Normal 1.0x", "Double Time 2.0x"])
         self.tempo_factor_combo.pack(side="left", padx=(4, 10))
         self.tempo_factor_combo.bind("<<ComboboxSelected>>", lambda e: self._recompute_result())
-        ttk.Label(r4, text="分析完成後才能切換，依耳朵判斷偵測是否抓成雙倍/一半速度",
-                  foreground="#888888").pack(side="left")
+        self.tempo_interp_var = tk.StringVar(value="Detected: -- BPM")
+        ttk.Label(r4, textvariable=self.tempo_interp_var, foreground="#555555").pack(side="left")
 
         box2b = ttk.LabelFrame(main, text="2b. Bar Alignment（分析完成後可調整）")
         box2b.pack(fill="x", **pad)
@@ -129,6 +132,23 @@ class GrooveMapApp:
         ttk.Entry(r6, width=6, textvariable=self.manual_downbeat_var).pack(side="left", padx=(4, 8))
         ttk.Button(r6, text="套用", command=self._recompute_result).pack(side="left")
         ttk.Button(r6, text="清除手動指定", command=self._clear_manual_downbeat).pack(side="left", padx=(6, 0))
+
+        box2c = ttk.LabelFrame(main, text="2c. Human Anchor（分析完成後可調整）")
+        box2c.pack(fill="x", **pad)
+        r7 = ttk.Frame(box2c)
+        r7.pack(fill="x", padx=8, pady=(8, 4))
+        self.snap_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(r7, text="Snap to Transient", variable=self.snap_var).pack(side="left")
+        ttk.Label(r7, text="Snap Range (ms):").pack(side="left", padx=(10, 0))
+        self.snap_range_var = tk.IntVar(value=int(SNAP_RANGE_MS_DEFAULT))
+        ttk.Spinbox(r7, from_=10, to=300, width=6, textvariable=self.snap_range_var).pack(side="left", padx=(4, 0))
+        ttk.Button(r7, text="+ Add Anchor", command=self._add_anchor_dialog).pack(side="left", padx=(16, 4))
+        ttk.Button(r7, text="Delete Anchor", command=self._delete_selected_anchor).pack(side="left")
+
+        r8 = ttk.Frame(box2c)
+        r8.pack(fill="x", padx=8, pady=(0, 8))
+        self.anchor_listbox = tk.Listbox(r8, height=4, font=("Consolas", 9))
+        self.anchor_listbox.pack(fill="x", expand=True)
 
         act = ttk.Frame(main)
         act.pack(fill="x", **pad)
@@ -170,10 +190,12 @@ class GrooveMapApp:
         self._cancel_flag = False
         self.result = None
         self.analysis_result = None
-        self.tempo_factor_var.set("1x（原始偵測）")
+        self.tempo_factor_var.set("Normal 1.0x")
         self.offset_var.set(0)
         self.offset_label_var.set("0 ms")
         self.manual_downbeat_var.set("")
+        self.pending_anchors = []
+        self._refresh_anchor_list()
         self.export_btn.config(state="disabled")
         self.analyze_btn.config(state="disabled")
         self.cancel_btn.config(state="normal")
@@ -259,6 +281,7 @@ class GrooveMapApp:
         if result.demucs_warning:
             messagebox.showwarning("GrooveMap", result.demucs_warning)
 
+        self.tempo_interp_var.set(f"Detected: {result.global_bpm:.2f} BPM")
         self._render_result(result)
 
     def _on_offset_dragging(self):
@@ -278,7 +301,7 @@ class GrooveMapApp:
         result = self.analysis_result
 
         label = self.tempo_factor_var.get()
-        factor = {"1x（原始偵測）": 1.0, "2x（Double Tempo）": 2.0, "0.5x（Half Tempo）": 0.5}.get(label, 1.0)
+        factor = {"Half Time 0.5x": 0.5, "Normal 1.0x": 1.0, "Double Time 2.0x": 2.0}.get(label, 1.0)
         try:
             if factor != 1.0:
                 result = apply_tempo_factor(result, factor)
@@ -289,12 +312,18 @@ class GrooveMapApp:
                 result = apply_alignment(
                     result, first_beat_offset_ms=offset_ms,
                     manual_downbeat_beat_number=manual_beat)
+
+            if self.pending_anchors:
+                result = apply_anchors(result, self.pending_anchors)
         except Exception as exc:
             messagebox.showerror("GrooveMap", f"套用校正失敗：\n{exc}")
             return
 
         self.result = result
         self.status_var.set("已套用校正")
+        self.tempo_interp_var.set(
+            f"Detected: {self.analysis_result.global_bpm:.2f} BPM"
+            f"  →  {scale_bpm(self.analysis_result.global_bpm, factor):.2f} BPM")
         self._render_result(result)
 
     def _manual_downbeat_beat_number(self):
@@ -306,6 +335,59 @@ class GrooveMapApp:
         except ValueError:
             return None
 
+    def _add_anchor_dialog(self):
+        if self.analysis_result is None:
+            messagebox.showwarning("GrooveMap", "請先完成分析再新增 Anchor。")
+            return
+        clicked = simpledialog.askfloat("新增 Anchor", "點擊位置（秒）：", parent=self.root, minvalue=0.0)
+        if clicked is None:
+            return
+        bar = simpledialog.askinteger("新增 Anchor", "小節編號 (Bar，1-based)：", parent=self.root, minvalue=1)
+        if bar is None:
+            return
+        beat = simpledialog.askinteger(
+            "新增 Anchor", "拍號 (Beat，1-based)：", parent=self.root,
+            minvalue=1, maxvalue=max(self._beats_per_bar(), 1))
+        if beat is None:
+            return
+
+        result = self.analysis_result
+        onset_env = getattr(result, "onset_envelope", None)
+        has_onset = onset_env is not None and len(onset_env) > 0
+        try:
+            anchor = make_anchor(
+                clicked, bar, beat,
+                onset_env=onset_env if has_onset else None,
+                sr=result.sr, hop_length=result.hop_length,
+                snap=bool(self.snap_var.get()), snap_range_ms=float(self.snap_range_var.get()),
+            )
+        except Exception as exc:
+            messagebox.showerror("GrooveMap", f"新增 Anchor 失敗：\n{exc}")
+            return
+
+        self.pending_anchors.append(anchor)
+        self._refresh_anchor_list()
+        self._recompute_result()
+
+        if anchor.clicked_time is not None and abs(anchor.time - anchor.clicked_time) > 1e-6:
+            messagebox.showinfo(
+                "GrooveMap", f"Clicked: {anchor.clicked_time:.3f} sec\nSnapped: {anchor.time:.3f} sec")
+
+    def _delete_selected_anchor(self):
+        sel = self.anchor_listbox.curselection()
+        if not sel:
+            return
+        idx = sel[0]
+        if 0 <= idx < len(self.pending_anchors):
+            del self.pending_anchors[idx]
+            self._refresh_anchor_list()
+            self._recompute_result()
+
+    def _refresh_anchor_list(self):
+        self.anchor_listbox.delete(0, "end")
+        for a in self.pending_anchors:
+            self.anchor_listbox.insert("end", f"Bar {a.bar} Beat {a.beat}    {a.time:8.3f} sec")
+
     def _render_result(self, result):
         s = result.summary()
         lines = [
@@ -316,6 +398,7 @@ class GrooveMapApp:
             f"小節數   : {s['小節數']}",
             f"拍號     : {s['拍號']}",
             f"Demucs   : {s['Demucs']}",
+            f"Anchors  : {s['Anchors']}",
         ]
         if result.demucs_warning:
             lines.append(f"⚠ {result.demucs_warning}")

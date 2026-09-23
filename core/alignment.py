@@ -98,7 +98,13 @@ def apply_alignment(result, first_beat_offset_ms: float = 0.0, manual_downbeat_b
     # 但物件裡儲存的 TempoEvent.time 要跟著更新，所以還是要重建。
     new_result.bpm_smooth = np.asarray(result.bpm_smooth, dtype=float).copy()
 
-    _rebuild_tempo_curve_layer(new_result)
+    # 校正後的 beat timeline 必須是所有 Tempo Event 的唯一依據——重新跑
+    # Beat Position Layer → Tempo Curve Layer（規格 P3），不能沿用校正前
+    # 算出來的 tempo_control_points。若已經有 Anchor（規格 P5），
+    # rebuild_for_result 會依 Anchor.time 重新對應到位移後的 beat index，
+    # Anchor 在自己的位置上永遠精確，不受這次平移影響。
+    from core.tempo_curve import rebuild_for_result
+    rebuild_for_result(new_result)
 
     log.info(
         "Bar Alignment 套用完成：offset=%.0fms, downbeat phase=%s",
@@ -106,23 +112,3 @@ def apply_alignment(result, first_beat_offset_ms: float = 0.0, manual_downbeat_b
         (manual_downbeat_beat_number if manual_downbeat_beat_number is not None else "未變更"),
     )
     return new_result
-
-
-def _rebuild_tempo_curve_layer(result) -> None:
-    """校正後的 beat timeline 必須是所有 Tempo Event 的唯一依據——
-    重新跑一次 Beat Position Layer → Tempo Curve Layer（規格 P3），
-    不能沿用校正前算出來的 tempo_control_points。沿用 result 原本
-    記錄的 tempo_density/max_tempo_nodes 設定，保持跟分析當下一致。"""
-    from core.tempo_events import build_tempo_events
-    from core.tempo_curve import reduce_tempo_curve_with_density, DEFAULT_DENSITY
-    from exporter.midi import PPQ as MIDI_PPQ
-
-    events = build_tempo_events(result.beat_times, result.bpm_raw)
-    confidences = getattr(result, "beat_confidence", None)
-    density = getattr(result, "tempo_density", DEFAULT_DENSITY)
-    max_nodes = getattr(result, "max_tempo_nodes", None)
-    cps, report = reduce_tempo_curve_with_density(
-        events, confidences=confidences, ppq=MIDI_PPQ,
-        density=density, max_nodes=max_nodes)
-    result.tempo_control_points = cps
-    result.accuracy_report = report

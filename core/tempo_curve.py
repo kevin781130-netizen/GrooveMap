@@ -140,6 +140,7 @@ def reduce_tempo_curve(
     max_error_ms: float = MAX_ERROR_MS,
     min_confidence: float = MIN_CONFIDENCE,
     max_nodes: Optional[int] = None,
+    forced_indices: Optional[Sequence[int]] = None,
 ) -> Tuple[List[TempoControlPoint], AccuracyReport]:
     """把 Beat Position Layer 的逐拍 TempoEvent 縮減成較少的 Tempo Control
     Point，並保證縮減後的曲線通過 Accuracy Validation（見模組 docstring）。
@@ -154,6 +155,10 @@ def reduce_tempo_curve(
          上限而假裝達標——AccuracyReport.capped 會誠實標示還沒達標）；
          沒設 max_nodes 時，最壞情況會退回全密度（每拍一個控制點），
          保證誤差趨近於零。
+
+    forced_indices：Human Anchor 對應的 beat index。這些點從一開始就
+    強制放進控制點集合，且演算法只會「加點」不會「刪點」，所以 Anchor
+    永遠不會被縮減或 smoothing 動到——這是 Hard Constraint 的實作方式。
     """
     n = len(events)
     if n == 0:
@@ -166,11 +171,14 @@ def reduce_tempo_curve(
         if len(conf) != n:
             raise ValueError(f"confidences 長度 ({len(conf)}) 與 events 長度 ({n}) 不一致")
 
+    forced = {int(i) for i in (forced_indices or []) if 0 <= int(i) < n}
+
     eligible = {i for i in range(n) if conf[i] >= min_confidence}
     eligible.add(0)
     eligible.add(n - 1)
+    eligible |= forced
 
-    selected = sorted({0, n - 1})
+    selected = sorted({0, n - 1} | forced)
 
     def _segment_average_bpms(idxs):
         """每個控制點的 BPM 用『它管轄的整段（到下一個控制點為止）剛好精確對上
@@ -248,10 +256,12 @@ def reduce_tempo_curve_with_density(
     density: str = DEFAULT_DENSITY,
     max_nodes: Optional[int] = None,
     min_confidence: float = MIN_CONFIDENCE,
+    forced_indices: Optional[Sequence[int]] = None,
 ) -> Tuple[List[TempoControlPoint], AccuracyReport]:
     """Adaptive Density Control 的入口：用 Sparse/Balanced/Detailed 預設值
     呼叫 reduce_tempo_curve。max_nodes 有給的話覆蓋 preset 預設的節點上限
-    （對應 GUI 的「Maximum Tempo Nodes」欄位）。
+    （對應 GUI 的「Maximum Tempo Nodes」欄位）。forced_indices 見
+    reduce_tempo_curve 的說明（Human Anchor Hard Constraint）。
     """
     preset = dict(DENSITY_PRESETS.get(density, DENSITY_PRESETS[DEFAULT_DENSITY]))
     if max_nodes is not None:
@@ -265,4 +275,38 @@ def reduce_tempo_curve_with_density(
         max_error_ms=preset["max_error_ms"],
         max_nodes=preset["max_nodes"],
         min_confidence=min_confidence,
+        forced_indices=forced_indices,
     )
+
+
+def rebuild_for_result(result, extra_forced_indices=None) -> None:
+    """統一的 Tempo Curve Layer 重建入口——取代 tempo_factor.py/alignment.py/
+    anchors.py 各自重複的 rebuild 邏輯。沿用 result 原本記錄的
+    tempo_density/max_tempo_nodes 設定，並自動把 result.anchors（如果有）
+    對應到的 beat_index 一起當作 forced_indices，確保 Anchor 永遠不被
+    縮減掉。直接修改傳入的 result（tempo_control_points/accuracy_report）。
+    """
+    from core.tempo_events import build_tempo_events
+
+    events = build_tempo_events(result.beat_times, result.bpm_raw)
+    density = getattr(result, "tempo_density", DEFAULT_DENSITY)
+    max_nodes = getattr(result, "max_tempo_nodes", None)
+    confidences = getattr(result, "beat_confidence", None)
+
+    forced = set(extra_forced_indices or [])
+    anchors = getattr(result, "anchors", None) or []
+    if anchors:
+        from core.anchors import nearest_beat_index
+        for a in anchors:
+            # beat_index 是快取；如果 beat_times 陣列在這之後被別的步驟
+            # （例如 Half/Double Tempo）改變過長度，用 Anchor.time 重新
+            # 對應最近的拍子，避免用到過期的 index。
+            forced.add(nearest_beat_index(result.beat_times, a.time))
+
+    from exporter.midi import PPQ as MIDI_PPQ
+
+    cps, rpt = reduce_tempo_curve_with_density(
+        events, confidences=confidences, ppq=MIDI_PPQ,
+        density=density, max_nodes=max_nodes, forced_indices=sorted(forced))
+    result.tempo_control_points = cps
+    result.accuracy_report = rpt
