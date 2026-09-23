@@ -63,6 +63,12 @@ class GrooveMapApp:
         ttk.Label(r2, text="首次使用需保持網路連線以下載模型（約數百 MB）",
                   foreground="#888888").pack(side="left", padx=(10, 0))
 
+        r3 = ttk.Frame(box2)
+        r3.pack(fill="x", padx=8, pady=(0, 8))
+        self.fast_sr_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(r3, text="快速分析 (22.05kHz，適合長 Session 快速抓大框架)",
+                        variable=self.fast_sr_var).pack(side="left")
+
         act = ttk.Frame(main)
         act.pack(fill="x", **pad)
         self.analyze_btn = ttk.Button(act, text="開始分析", command=self._analyze)
@@ -114,6 +120,7 @@ class GrooveMapApp:
             beats_per_bar=self._beats_per_bar(),
             smooth_strength=float(self.smooth_var.get()),
             use_demucs=bool(self.demucs_var.get()),
+            sr=22050 if self.fast_sr_var.get() else 44100,
         )
         self.worker = threading.Thread(target=self._run_worker, args=(path, opts), daemon=True)
         self.worker.start()
