@@ -1,5 +1,6 @@
 """End-to-end SUNO drums stem -> events -> tempo -> groove -> MIDI."""
 from __future__ import annotations
+
 import json
 from pathlib import Path
 
@@ -25,16 +26,41 @@ def _transcribe(
     onnx_threshold: float | None,
 ):
     if drum_model is None and drum_manifest is None:
-        return transcribe_drum_stem(source, sensitivity=sensitivity), "cleanroom-dsp-3class"
+        return (
+            transcribe_drum_stem(source, sensitivity=sensitivity),
+            "cleanroom-dsp-3class",
+        )
     if drum_model is None or drum_manifest is None:
         raise ValueError("--drum-model and --drum-manifest must be supplied together")
 
     from .onnx_drum import OnnxDrumTranscriber
+
     transcriber = OnnxDrumTranscriber(drum_model, drum_manifest)
     return (
         transcriber.transcribe(source, threshold=onnx_threshold),
         f"onnx:{Path(drum_model).name}",
     )
+
+
+def _validate_strength(value: float, name: str) -> float:
+    result = float(value)
+    if not 0.0 <= result <= 1.5:
+        raise ValueError(f"{name} must be in 0.0..1.5")
+    return result
+
+
+def _optional_output_paths(prefix: Path) -> tuple[Path, Path]:
+    return (
+        prefix.with_name(prefix.name + "_drums_humanized.mid"),
+        prefix.with_name(prefix.name + "_groove.json"),
+    )
+
+
+def _clear_optional_outputs(prefix: Path) -> tuple[Path, Path]:
+    humanized_path, groove_path = _optional_output_paths(prefix)
+    for path in (humanized_path, groove_path):
+        path.unlink(missing_ok=True)
+    return humanized_path, groove_path
 
 
 def run_suno_drum_pipeline(
@@ -60,6 +86,20 @@ def run_suno_drum_pipeline(
     prefix = Path(output_prefix)
     prefix.parent.mkdir(parents=True, exist_ok=True)
 
+    # Validate before doing expensive inference so metadata and rendering always
+    # describe the exact same effective settings.
+    timing_strength = _validate_strength(timing_strength, "timing_strength")
+    velocity_strength = _validate_strength(
+        velocity_strength,
+        "velocity_strength",
+    )
+    if pattern_bars < 1:
+        raise ValueError("pattern_bars must be >= 1")
+
+    # A repeated run with the same prefix must never leave optional artifacts
+    # from a previous humanized run behind.
+    humanized_candidate, groove_candidate = _clear_optional_outputs(prefix)
+
     # Stage 1: extract musical events in absolute seconds.
     detected_events, transcription_source = _transcribe(
         source,
@@ -70,7 +110,11 @@ def run_suno_drum_pipeline(
     )
 
     # Stage 2: recover the non-constant beat/downbeat timeline.
-    tracker = BeatThisTracker(checkpoint=checkpoint, device=device, float16=float16)
+    tracker = BeatThisTracker(
+        checkpoint=checkpoint,
+        device=device,
+        float16=float16,
+    )
     analysis = tracker.analyze(source)
     tempo_map = build_tempo_map(
         analysis,
@@ -96,7 +140,7 @@ def run_suno_drum_pipeline(
             timing_strength=timing_strength,
             velocity_strength=velocity_strength,
         )
-        groove_path = prefix.with_name(prefix.name + "_groove.json")
+        groove_path = groove_candidate
         save_groove_template(template, groove_path)
 
     # Stage 4: vendor-specific key mapping happens last; labels remain semantic.
@@ -124,10 +168,15 @@ def run_suno_drum_pipeline(
     humanized_path: Path | None = None
 
     write_tempo_midi(tempo_map, tempo_path, tick_shift=tick_shift)
-    write_drum_midi(tempo_map, drum_events, drums_path, tick_shift=tick_shift)
+    write_drum_midi(
+        tempo_map,
+        drum_events,
+        drums_path,
+        tick_shift=tick_shift,
+    )
 
     if mapped_humanized is not None:
-        humanized_path = prefix.with_name(prefix.name + "_drums_humanized.mid")
+        humanized_path = humanized_candidate
         write_drum_midi(
             tempo_map,
             mapped_humanized,
@@ -161,7 +210,11 @@ def run_suno_drum_pipeline(
         "beats_sec": list(tempo_map.beats_sec),
         "downbeats_sec": list(tempo_map.downbeats_sec),
         "tempo_points": [
-            {"beat_index": p.beat_index, "time_sec": p.time_sec, "bpm": p.bpm}
+            {
+                "beat_index": p.beat_index,
+                "time_sec": p.time_sec,
+                "bpm": p.bpm,
+            }
             for p in tempo_map.tempo_points
         ],
         "drum_events": encode_events(drum_events),
@@ -170,7 +223,7 @@ def run_suno_drum_pipeline(
             "enabled": humanized_events is not None,
             "timing_strength": timing_strength,
             "velocity_strength": velocity_strength,
-            "pattern_bars": pattern_bars,
+            "pattern_bars": int(pattern_bars),
         },
     }
     timing_path.write_text(
