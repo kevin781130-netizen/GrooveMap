@@ -43,11 +43,11 @@ def read_drum_midi(
     path: str | Path,
     tempo_map: TempoMap,
     *,
-    tick_shift: int,
+    input_tick_shift: int = 0,
     channel: int | None = 9,
 ) -> list[DrumEvent]:
     midi = MidiFile(path)
-    shift_beats = tick_shift / tempo_map.ppq
+    shift_beats = input_tick_shift / tempo_map.ppq
     events: list[DrumEvent] = []
 
     for track in midi.tracks:
@@ -85,13 +85,15 @@ def humanize_midi_file(
     velocity_strength: float = 1.0,
     mapping_json: str | Path | None = None,
     channel: int | None = 9,
+    input_has_groovemap_preroll: bool = False,
 ) -> Path:
     tempo_map, tick_shift = load_timing_context(timing_json)
     groove = load_groove_template(groove_json)
+    input_tick_shift = tick_shift if input_has_groovemap_preroll else 0
     events = read_drum_midi(
         midi_path,
         tempo_map,
-        tick_shift=tick_shift,
+        input_tick_shift=input_tick_shift,
         channel=channel,
     )
     if not events:
