@@ -15,12 +15,12 @@ def _tempo():
         repair_missing_beats=False,
     )
 
-def _write_skeleton(path, tick_shift):
+def _write_skeleton(path, input_shift_beats=0.0):
     midi = MidiFile(type=1, ticks_per_beat=480)
     track = MidiTrack()
     midi.tracks.append(track)
-    # Musical beat position 1.0, with 4 beats of GrooveMap preroll.
-    absolute_tick = round((tick_shift / 960 + 1.0) * 480)
+    # External patterns normally start at musical beat zero.
+    absolute_tick = round((input_shift_beats + 1.0) * 480)
     track.append(Message("note_on", channel=9, note=38, velocity=80, time=absolute_tick))
     track.append(Message("note_off", channel=9, note=38, velocity=0, time=30))
     midi.save(path)
@@ -29,8 +29,8 @@ def test_read_external_midi_uses_groovemap_timeline(tmp_path):
     tm = _tempo()
     tick_shift = 3840
     path = tmp_path / "skeleton.mid"
-    _write_skeleton(path, tick_shift)
-    events = read_drum_midi(path, tm, tick_shift=tick_shift)
+    _write_skeleton(path)
+    events = read_drum_midi(path, tm, input_tick_shift=0)
     assert len(events) == 1
     assert events[0].label == "snare"
     assert abs(events[0].time_sec - 0.5) < 1e-9
@@ -42,7 +42,7 @@ def test_humanize_midi_file_roundtrip(tmp_path):
     midi_out = tmp_path / "human.mid"
     timing = tmp_path / "timing.json"
     groove = tmp_path / "groove.json"
-    _write_skeleton(midi_in, tick_shift)
+    _write_skeleton(midi_in)
 
     timing.write_text(
         json.dumps({
@@ -81,7 +81,16 @@ def test_humanize_midi_file_roundtrip(tmp_path):
         timing_strength=1.0,
         velocity_strength=1.0,
     )
-    events = read_drum_midi(midi_out, tm, tick_shift=tick_shift)
+    events = read_drum_midi(midi_out, tm, input_tick_shift=tick_shift)
     assert len(events) == 1
     assert abs(events[0].time_sec - 0.525) < 0.001
     assert events[0].velocity == 120
+
+def test_can_read_a_groovemap_export_with_preroll(tmp_path):
+    tm = _tempo()
+    tick_shift = 3840
+    path = tmp_path / "groovemap.mid"
+    _write_skeleton(path, input_shift_beats=tick_shift / tm.ppq)
+    events = read_drum_midi(path, tm, input_tick_shift=tick_shift)
+    assert len(events) == 1
+    assert abs(events[0].time_sec - 0.5) < 1e-9
