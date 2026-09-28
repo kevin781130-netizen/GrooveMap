@@ -6,10 +6,12 @@ maps remain a separate remapping layer.
 from __future__ import annotations
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True, slots=True)
 class DrumClass:
     label: str
     midi_note: int
+
 
 DRUM_CLASSES_20: tuple[DrumClass, ...] = (
     DrumClass("kick", 36),
@@ -35,3 +37,4 @@ DRUM_CLASSES_20: tuple[DrumClass, ...] = (
 )
 
 BY_LABEL = {item.label: item for item in DRUM_CLASSES_20}
+BY_NOTE = {item.midi_note: item for item in DRUM_CLASSES_20}
