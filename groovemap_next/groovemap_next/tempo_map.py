@@ -132,3 +132,25 @@ def choose_tick_shift(tempo_map: TempoMap, earliest_time_sec: float = 0.0) -> in
     if raw_tick >= 0:
         return bar_ticks
     return (ceil((-raw_tick) / bar_ticks) + 1) * bar_ticks
+
+
+def beat_position_to_seconds(tempo_map: TempoMap, beat_position: float) -> float:
+    """Inverse of seconds_to_beat_position for the piecewise beat timeline."""
+    beats = tempo_map.beats_sec
+    origin = tempo_map.origin_beat_index
+    if len(beats) < 2:
+        raise ValueError("tempo map must contain at least two beats")
+
+    absolute = float(beat_position) + origin
+    if absolute <= 0.0:
+        interval = beats[1] - beats[0]
+        return max(0.0, beats[0] + absolute * interval)
+
+    last_index = len(beats) - 1
+    if absolute >= last_index:
+        interval = beats[-1] - beats[-2]
+        return beats[-1] + (absolute - last_index) * interval
+
+    left = int(absolute)
+    fraction = absolute - left
+    return beats[left] + fraction * (beats[left + 1] - beats[left])
