@@ -9,7 +9,7 @@ A model is paired with a JSON manifest. See `manifest-20class.example.json`.
 
 The reference contract accepts mono float32 audio and returns frame-wise onset
 probabilities, plus an optional velocity tensor. Both tensors use the same
-20-class semantic order defined by the manifest.
+semantic class order defined by the manifest.
 
 Supported input layouts:
 
@@ -21,7 +21,19 @@ Supported output layouts:
 - `B,T,C`
 - `B,C,T`
 
-This keeps GrooveMap independent from any specific training framework.
+When `velocity_output` is present, the manifest must also declare exactly one
+velocity encoding:
+
+- `"velocity_encoding": "normalized"` for values in 0..1.
+- `"velocity_encoding": "midi"` for values in 0..127.
+
+GrooveMap never guesses the encoding from individual values.
+
+If a model sample rate differs from the source WAV, GrooveMap applies its own
+NumPy windowed-sinc low-pass before downsampling so cymbal/hi-hat energy above
+the target Nyquist frequency is not aliased into lower bands.
+
+This contract keeps GrooveMap independent from a specific training framework.
 
 ## Why no downloaded checkpoint is committed
 
