@@ -77,6 +77,25 @@ tempo-aware grid.
 Microtiming is stored as a fraction of a subdivision rather than milliseconds,
 so the groove follows tempo drift instead of accumulating alignment error.
 
+## Humanize a different drum MIDI skeleton
+
+Once a SUNO performance has produced `*_timing.json` and `*_groove.json`,
+the same feel can be transferred to another GM drum MIDI pattern:
+
+```bash
+groovemap-next humanize-midi \
+  --midi "basic_pattern.mid" \
+  --timing "song01_timing.json" \
+  --groove "song01_groove.json" \
+  --out "basic_pattern_humanized.mid" \
+  --timing-strength 1.0 \
+  --velocity-strength 1.0
+```
+
+This is the clean-room replacement for the "quantized rhythm backbone ->
+humanized performance" stage: the score can come from another generator or
+from hand-programmed MIDI, while the feel comes from the SUNO performance.
+
 ## Optional 20-class ONNX model
 
 No pretrained checkpoint is bundled until the weight file itself has clear
