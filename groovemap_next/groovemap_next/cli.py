@@ -65,6 +65,17 @@ def main() -> None:
             print(f"humanized MIDI : {outputs.humanized_midi}")
         if outputs.groove_json is not None:
             print(f"groove template: {outputs.groove_json}")
+    elif args.command == "humanize-midi":
+        output = humanize_midi_file(
+            args.midi,
+            args.timing,
+            args.groove,
+            args.out,
+            timing_strength=args.timing_strength,
+            velocity_strength=args.velocity_strength,
+            mapping_json=args.map_json,
+        )
+        print(f"humanized MIDI : {output}")
 
 if __name__ == "__main__":
     main()
