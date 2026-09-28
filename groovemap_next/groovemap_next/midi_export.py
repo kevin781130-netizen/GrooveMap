@@ -1,6 +1,6 @@
 """MIDI export for Cubase/DAW tempo maps and drum tracks."""
 from __future__ import annotations
-from bisect import bisect_left
+from bisect import bisect_right
 from pathlib import Path
 from typing import Iterable
 from mido import Message, MetaMessage, MidiFile, MidiTrack, bpm2tempo
@@ -17,17 +17,30 @@ def _append_absolute(track: MidiTrack, events: list[tuple[int, int, object]]) ->
         track.append(msg)
         previous = tick
 
+def _nearest_beat_index(beats: tuple[float, ...], target: float) -> int:
+    pos = bisect_right(beats, target)
+    candidates: list[int] = []
+    if pos < len(beats):
+        candidates.append(pos)
+    if pos > 0:
+        candidates.append(pos - 1)
+    return min(candidates, key=lambda i: abs(beats[i] - target))
+
 def _downbeat_ticks(tempo_map: TempoMap, tick_shift: int) -> list[int]:
-    return sorted({
-        tick_shift + seconds_to_ticks(tempo_map, d)
-        for d in tempo_map.downbeats_sec
-        if tick_shift + seconds_to_ticks(tempo_map, d) >= 0
-    })
+    """Snap every raw downbeat timestamp to its nearest accepted beat."""
+    ticks: set[int] = set()
+    for downbeat in tempo_map.downbeats_sec:
+        idx = _nearest_beat_index(tempo_map.beats_sec, downbeat)
+        tick = tick_shift + (idx - tempo_map.origin_beat_index) * tempo_map.ppq
+        if tick >= 0:
+            ticks.add(tick)
+    return sorted(ticks)
 
 def make_tempo_track(tempo_map: TempoMap, tick_shift: int) -> MidiTrack:
     track = MidiTrack()
     events: list[tuple[int, int, object]] = []
     first_bpm = tempo_map.tempo_points[0].bpm
+
     events.append((0, 0, MetaMessage("track_name", name="GrooveMap Tempo")))
     events.append((0, 1, MetaMessage(
         "time_signature",
@@ -53,7 +66,12 @@ def make_tempo_track(tempo_map: TempoMap, tick_shift: int) -> MidiTrack:
     _append_absolute(track, events)
     return track
 
-def write_tempo_midi(tempo_map: TempoMap, output_path: str | Path, *, tick_shift: int) -> Path:
+def write_tempo_midi(
+    tempo_map: TempoMap,
+    output_path: str | Path,
+    *,
+    tick_shift: int,
+) -> Path:
     output = Path(output_path)
     midi = MidiFile(type=1, ticks_per_beat=tempo_map.ppq)
     midi.tracks.append(make_tempo_track(tempo_map, tick_shift))
@@ -73,7 +91,9 @@ def write_drum_midi(
     midi.tracks.append(make_tempo_track(tempo_map, tick_shift))
 
     drum_track = MidiTrack()
-    events: list[tuple[int, int, object]] = [(0, 0, MetaMessage("track_name", name="GrooveMap Drums"))]
+    events: list[tuple[int, int, object]] = [
+        (0, 0, MetaMessage("track_name", name="GrooveMap Drums"))
+    ]
     length = note_length_ticks or max(1, tempo_map.ppq // 64)
 
     for event in drum_events:
