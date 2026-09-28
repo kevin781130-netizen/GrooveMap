@@ -59,6 +59,11 @@ def build_parser() -> argparse.ArgumentParser:
     hm.add_argument("--map-json", default=None, help="optional final AD2/SD3 map")
     hm.add_argument("--timing-strength", type=float, default=1.0)
     hm.add_argument("--velocity-strength", type=float, default=1.0)
+    hm.add_argument(
+        "--input-has-groovemap-preroll",
+        action="store_true",
+        help="set only when the input MIDI was previously exported by GrooveMap",
+    )
 
     return parser
 
@@ -103,6 +108,7 @@ def main() -> None:
             timing_strength=args.timing_strength,
             velocity_strength=args.velocity_strength,
             mapping_json=args.map_json,
+            input_has_groovemap_preroll=args.input_has_groovemap_preroll,
         )
         print(f"humanized MIDI : {output}")
         return
