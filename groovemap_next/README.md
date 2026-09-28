@@ -76,6 +76,12 @@ tempo-aware grid.
 
 Microtiming is stored as a fraction of a subdivision rather than milliseconds,
 so the groove follows tempo drift instead of accumulating alignment error.
+Timing and velocity strengths must be in `0.0..1.5`; invalid values fail
+instead of being silently clamped, so `*_timing.json` remains reproducible.
+
+Flams, drags and rolls that contain multiple hits in one subdivision are moved
+as a group. Their center follows the groove template while the original
+intra-group timing and velocity differences are preserved.
 
 ## Humanize a different drum MIDI skeleton
 
@@ -91,6 +97,10 @@ groovemap-next humanize-midi \
   --timing-strength 1.0 \
   --velocity-strength 1.0
 ```
+
+External MIDI is assumed to start at musical beat zero. Only add
+`--input-has-groovemap-preroll` when the input MIDI was itself exported by
+GrooveMap and therefore already contains GrooveMap's DAW pre-roll.
 
 This is the clean-room replacement for the "quantized rhythm backbone ->
 humanized performance" stage: the score can come from another generator or
@@ -120,6 +130,11 @@ groovemap-next suno \
   --drum-manifest "models/my-drumnet.json" \
   --humanize-source
 ```
+
+When model and source sample rates differ, GrooveMap anti-alias filters before
+downsampling. If a model exposes a velocity head, its manifest must explicitly
+declare whether values are normalized `0..1` or MIDI-scale `0..127`; the
+runtime does not guess from individual hits.
 
 ONNX Runtime is optional and MIT licensed.
 
