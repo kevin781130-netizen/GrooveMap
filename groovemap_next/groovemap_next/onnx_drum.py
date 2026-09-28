@@ -31,12 +31,16 @@ class OnnxDrumManifest:
     @classmethod
     def load(cls, path: str | Path) -> "OnnxDrumManifest":
         payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        if payload.get("schema") != "groovemap-onnx-drum-v1":
+            raise ValueError("unsupported GrooveMap ONNX drum manifest schema")
         labels = tuple(str(x) for x in payload["labels"])
         midi_notes = tuple(int(x) for x in payload["midi_notes"])
         if len(labels) != len(midi_notes):
             raise ValueError("labels and midi_notes must have equal length")
         if not labels:
             raise ValueError("manifest must define at least one class")
+        if len(set(labels)) != len(labels):
+            raise ValueError("manifest labels must be unique")
         if any(not 0 <= note <= 127 for note in midi_notes):
             raise ValueError("manifest contains invalid MIDI notes")
         layout = str(payload.get("input_layout", "B,T"))
@@ -48,9 +52,19 @@ class OnnxDrumManifest:
         activation = str(payload.get("output_activation", "probability"))
         if activation not in {"probability", "logit"}:
             raise ValueError("output_activation must be probability or logit")
+        sample_rate = int(payload["sample_rate"])
+        hop_length = int(payload["hop_length"])
+        threshold = float(payload.get("threshold", 0.5))
+        min_gap_ms = float(payload.get("min_gap_ms", 25.0))
+        if sample_rate <= 0 or hop_length <= 0:
+            raise ValueError("sample_rate and hop_length must be positive")
+        if not 0.0 <= threshold <= 1.0:
+            raise ValueError("threshold must be in 0..1")
+        if min_gap_ms < 0.0:
+            raise ValueError("min_gap_ms must be >= 0")
         return cls(
-            sample_rate=int(payload["sample_rate"]),
-            hop_length=int(payload["hop_length"]),
+            sample_rate=sample_rate,
+            hop_length=hop_length,
             labels=labels,
             midi_notes=midi_notes,
             input_name=str(payload["input_name"]),
@@ -63,8 +77,8 @@ class OnnxDrumManifest:
             input_layout=layout,
             output_layout=out_layout,
             output_activation=activation,
-            threshold=float(payload.get("threshold", 0.5)),
-            min_gap_ms=float(payload.get("min_gap_ms", 25.0)),
+            threshold=threshold,
+            min_gap_ms=min_gap_ms,
         )
 
 
@@ -126,6 +140,15 @@ class OnnxDrumTranscriber:
             raise ValueError(
                 f"manifest input {self.manifest.input_name!r} not found in model"
             )
+        available_outputs = {x.name for x in self.session.get_outputs()}
+        required_outputs = {self.manifest.onset_output}
+        if self.manifest.velocity_output is not None:
+            required_outputs.add(self.manifest.velocity_output)
+        missing_outputs = required_outputs - available_outputs
+        if missing_outputs:
+            raise ValueError(
+                f"manifest outputs not found in model: {sorted(missing_outputs)}"
+            )
 
     def transcribe(
         self,
@@ -163,6 +186,8 @@ class OnnxDrumTranscriber:
             )
 
         th = float(m.threshold if threshold is None else threshold)
+        if not 0.0 <= th <= 1.0:
+            raise ValueError("onset threshold must be in 0..1")
         min_gap_frames = max(
             1,
             round((m.min_gap_ms / 1000.0) * m.sample_rate / m.hop_length),
