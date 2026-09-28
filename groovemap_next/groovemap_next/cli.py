@@ -1,7 +1,10 @@
 """Command-line entry point for GrooveMap Next."""
 from __future__ import annotations
 import argparse
+
+from .midi_humanize import humanize_midi_file
 from .pipeline import run_suno_drum_pipeline
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="groovemap-next")
@@ -16,14 +19,23 @@ def build_parser() -> argparse.ArgumentParser:
     suno.add_argument("--device", default="cpu", help="Beat This! device: cpu/cuda")
     suno.add_argument("--checkpoint", default="final0", help="Beat This! checkpoint")
     suno.add_argument("--float16", action="store_true", help="float16 beat inference")
-    suno.add_argument("--sensitivity", type=float, default=1.0, help="DSP fallback sensitivity")
+    suno.add_argument(
+        "--sensitivity",
+        type=float,
+        default=1.0,
+        help="DSP fallback sensitivity",
+    )
     suno.add_argument("--map-json", default=None, help="semantic AD2/SD3 keymap JSON")
     suno.add_argument("--ppq", type=int, default=960)
     suno.add_argument("--beats-per-bar", type=int, default=4)
 
     model = suno.add_argument_group("optional ONNX drum model")
     model.add_argument("--drum-model", default=None, help="licensed ONNX model path")
-    model.add_argument("--drum-manifest", default=None, help="GrooveMap model manifest JSON")
+    model.add_argument(
+        "--drum-manifest",
+        default=None,
+        help="GrooveMap model manifest JSON",
+    )
     model.add_argument("--onnx-threshold", type=float, default=None)
 
     groove = suno.add_argument_group("clean-room groove reconstruction")
@@ -35,10 +47,25 @@ def build_parser() -> argparse.ArgumentParser:
     groove.add_argument("--timing-strength", type=float, default=1.0)
     groove.add_argument("--velocity-strength", type=float, default=1.0)
     groove.add_argument("--pattern-bars", type=int, default=2)
+
+    hm = sub.add_parser(
+        "humanize-midi",
+        help="apply a saved GrooveMap groove to an external GM drum MIDI skeleton",
+    )
+    hm.add_argument("--midi", required=True, help="input drum MIDI skeleton")
+    hm.add_argument("--timing", required=True, help="GrooveMap *_timing.json")
+    hm.add_argument("--groove", required=True, help="GrooveMap *_groove.json")
+    hm.add_argument("--out", required=True, help="output humanized MIDI")
+    hm.add_argument("--map-json", default=None, help="optional final AD2/SD3 map")
+    hm.add_argument("--timing-strength", type=float, default=1.0)
+    hm.add_argument("--velocity-strength", type=float, default=1.0)
+
     return parser
+
 
 def main() -> None:
     args = build_parser().parse_args()
+
     if args.command == "suno":
         outputs = run_suno_drum_pipeline(
             args.drums,
@@ -65,7 +92,9 @@ def main() -> None:
             print(f"humanized MIDI : {outputs.humanized_midi}")
         if outputs.groove_json is not None:
             print(f"groove template: {outputs.groove_json}")
-    elif args.command == "humanize-midi":
+        return
+
+    if args.command == "humanize-midi":
         output = humanize_midi_file(
             args.midi,
             args.timing,
@@ -76,6 +105,10 @@ def main() -> None:
             mapping_json=args.map_json,
         )
         print(f"humanized MIDI : {output}")
+        return
+
+    raise RuntimeError(f"unhandled command: {args.command}")
+
 
 if __name__ == "__main__":
     main()
