@@ -1,0 +1,39 @@
+{
+  "schema": "groovemap-onnx-drum-v1",
+  "sample_rate": 48000,
+  "hop_length": 480,
+  "input_name": "audio",
+  "onset_output": "onsets",
+  "velocity_output": "velocities",
+  "input_layout": "B,T",
+  "output_layout": "B,T,C",
+  "output_activation": "probability",
+  "threshold": 0.5,
+  "min_gap_ms": 25.0,
+  "labels": [
+    "kick",
+    "snare",
+    "sidestick",
+    "clap",
+    "closed_hat",
+    "pedal_hat",
+    "open_hat",
+    "low_floor_tom",
+    "high_floor_tom",
+    "low_tom",
+    "low_mid_tom",
+    "high_mid_tom",
+    "high_tom",
+    "crash_1",
+    "ride",
+    "china",
+    "ride_bell",
+    "splash",
+    "crash_2",
+    "cowbell"
+  ],
+  "midi_notes": [
+    36, 38, 37, 39, 42, 44, 46, 41, 43, 45,
+    47, 48, 50, 49, 51, 52, 53, 55, 57, 56
+  ]
+}
