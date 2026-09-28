@@ -8,8 +8,10 @@ on:
   push:
     branches:
       - "feat/suno-midi-tempo-v2"
+      - "feat/groove-humanize-v3"
     paths:
       - "groovemap_next/**"
+      - ".github/workflows/groovemap-next.yml"
 
 jobs:
   test:
