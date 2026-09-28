@@ -48,3 +48,5 @@ class PipelineOutputs:
     tempo_midi: Path
     drum_midi: Path
     timing_json: Path
+    humanized_midi: Path | None = None
+    groove_json: Path | None = None
