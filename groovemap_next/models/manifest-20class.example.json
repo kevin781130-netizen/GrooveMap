@@ -5,6 +5,7 @@
   "input_name": "audio",
   "onset_output": "onsets",
   "velocity_output": "velocities",
+  "velocity_encoding": "normalized",
   "input_layout": "B,T",
   "output_layout": "B,T,C",
   "output_activation": "probability",
