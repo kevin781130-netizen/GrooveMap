@@ -1,3 +1,5 @@
+import pytest
+
 from groovemap_next.models import BeatAnalysis
 from groovemap_next.tempo_map import (
     build_tempo_map,
@@ -35,3 +37,21 @@ def test_missing_single_beat_is_repaired_conservatively():
     )
     tm = build_tempo_map(analysis, repair_missing_beats=True)
     assert any(abs(x - 1.5) < 1e-9 for x in tm.beats_sec)
+
+def test_sustained_half_time_section_is_not_repaired():
+    analysis = BeatAnalysis(
+        beats_sec=(0.0, 0.5, 1.0, 1.5, 2.5, 3.5, 4.5),
+        downbeats_sec=(0.0,),
+    )
+    tm = build_tempo_map(analysis, repair_missing_beats=True)
+    assert tm.beats_sec == analysis.beats_sec
+    assert round(tm.tempo_points[3].bpm, 3) == 60.0
+    assert round(tm.tempo_points[4].bpm, 3) == 60.0
+
+def test_invalid_interval_rejects_entire_map_instead_of_partial_export():
+    analysis = BeatAnalysis(
+        beats_sec=(0.0, 0.5, 4.5, 5.0),
+        downbeats_sec=(0.0,),
+    )
+    with pytest.raises(ValueError, match="partial tempo map"):
+        build_tempo_map(analysis, repair_missing_beats=False)
