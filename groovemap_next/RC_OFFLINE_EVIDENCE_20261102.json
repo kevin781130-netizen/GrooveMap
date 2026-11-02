@@ -1,0 +1,76 @@
+{
+  "schema": "groovemap-offline-rc-acceptance-v1",
+  "repository": "kevin781130-netizen/GrooveMap",
+  "branch": "fix/groovemap-v3-preflight-output-safety-20261102",
+  "source_commit": "dcaad6faa24a40cdbebe0b2dc718c98e4969946e",
+  "scope": "V3 Python CLI + 3-class clean-room DSP; optional 20-class ONNX contract without weights",
+  "status": "PASS_OFFLINE_RC",
+  "source_integrity": {
+    "type": "byte-for-byte local Git blob SHA1 checked against GitHub tree",
+    "files_verified": 30,
+    "python_modules": 13,
+    "original_pytest_files": 12,
+    "sha1_by_path": {
+      "LICENSE": "f2486768f06c6f6cae24f52fe8d0ed5efb8108fa",
+      "README.md": "ce13f8449cede46b47c38ddde1cda92781630b54",
+      "groovemap_next/__init__.py": "f011fc8ed883f7a0fff21bbd917d76f0aaf7e2b3",
+      "groovemap_next/beat_tracker.py": "368d6aa510ff1bdc77573a7aa82f9ee14c2d5ac8",
+      "groovemap_next/cli.py": "6506638618702b5a6b8bfeb0299b7ce3c7795a68",
+      "groovemap_next/drum_taxonomy.py": "6adffc795212de7f4493d558cb624f74368dada4",
+      "groovemap_next/drum_transcriber.py": "24615f6ecc6731bb30386d7ee3c91dd2d670352c",
+      "groovemap_next/groove_humanizer.py": "26f229d111420e5af148752c901610f17315ae8a",
+      "groovemap_next/midi_export.py": "f46341becf321dd59a01e9f5c970e357d1e88e7c",
+      "groovemap_next/midi_humanize.py": "eb6205fd60dc0d07f3f28a72ab23f7b19d8dda35",
+      "groovemap_next/models.py": "2a281eec66e1d108a0ea2500b2a094f461c58500",
+      "groovemap_next/onnx_drum.py": "a799cb3ad5e906a568039f23f4076775bf18ccc4",
+      "groovemap_next/pipeline.py": "b0135599294e859a8d99c9813c71d71bc08e8f65",
+      "groovemap_next/remap.py": "3982f127ae18662eb20ff80a98e66a4f875154eb",
+      "groovemap_next/tempo_map.py": "811e537e2f2397a22a705b5e6c8b758ed8dabe6b",
+      "models/manifest-20class.example.json": "60ddad035dc78dfa5f7a0afe098cf20930b7948c",
+      "pyproject.toml": "269c9c10edc22a88c677129f26e97cc1598d7f76",
+      "scripts/release_gate.py": "7a0d1b332aa5722f8209101cea2881aabfa542e6",
+      "tests/test_cli.py": "69dd0a4458608c54800ffbfb535bb2f1e5e5d322",
+      "tests/test_drum_transcriber.py": "aa08581faa0bb8309e898fb23bd6e3985e1da532",
+      "tests/test_groove_humanizer.py": "41bbc70005ccd338ec748c01b81e8caeaa220852",
+      "tests/test_midi_export.py": "272652ad8e00ea5e2312d66e46f7049b3ac276d1",
+      "tests/test_midi_humanize.py": "15a15133994c67132e8c51ff6fa66b992acfcefe",
+      "tests/test_onnx_contract.py": "9571a2e1bfb12b93e0f5b886c4c23142623f47d7",
+      "tests/test_pipeline_helpers.py": "05512bdb023bc0ec2c4edb4b1d7acd91c0389027",
+      "tests/test_pipeline_release_safety.py": "006766c3211f48c00885f100e15d86df8e606c01",
+      "tests/test_release_end_to_end.py": "1a2cf244acb08a669025f292f08b7a2b8aac658e",
+      "tests/test_release_gate.py": "d89fa43684aa5f62b2d61223692ed245bcb5a478",
+      "tests/test_remap.py": "ded0e0a6de70c4d711ea4fc6b922c09f9fa0ef7c",
+      "tests/test_tempo_map.py": "b2022b5e1e9704344a90442ea3017ef0c4f02e2b"
+    }
+  },
+  "checks": {
+    "compileall": "PASS",
+    "pytest": {
+      "passed": 58,
+      "failed": 0,
+      "skipped": 0,
+      "exit_code": 0
+    },
+    "wheel_build": "PASS",
+    "wheel_name": "groovemap_next-0.2.0-py3-none-any.whl",
+    "wheel_sha256": "41db79fe71973af52e2d7eb9fe365c3f373a87a9cad36efdacb1ff1551e87661",
+    "wheel_python_modules_byte_equal_source": 13,
+    "installed_wheel_cli_help": "PASS",
+    "command": "python scripts/release_gate.py --offline --report-json offline-release-report.json",
+    "python": "3.13",
+    "numpy": "2.3.5",
+    "mido": "1.3.3",
+    "pytest_version": "9.0.2"
+  },
+  "not_performed": [
+    "Genuine Beat This! checkpoint/inference",
+    "Real SUNO stem / Cubase full song alignment and listening",
+    "Windows hardware/GUI/EXE",
+    "Optional 20-class licensed ONNX model execution"
+  ],
+  "limitations": [
+    "Wheel CLI smoke reused host NumPy/Mido through PYTHONPATH since runner network access unavailable"
+  ],
+  "github_actions_used": false,
+  "main_changed": false
+}
