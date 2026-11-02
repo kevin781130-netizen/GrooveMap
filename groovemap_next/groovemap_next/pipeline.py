@@ -96,9 +96,9 @@ def run_suno_drum_pipeline(
     if pattern_bars < 1:
         raise ValueError("pattern_bars must be >= 1")
 
-    # A repeated run with the same prefix must never leave optional artifacts
-    # from a previous humanized run behind.
-    humanized_candidate, groove_candidate = _clear_optional_outputs(prefix)
+    # Preserve previous successful artifacts during transcription, beat analysis,
+    # validation, and export. Absent optional outputs are pruned only on success.
+    humanized_candidate, groove_candidate = _optional_output_paths(prefix)
 
     # Stage 1: extract musical events in absolute seconds.
     detected_events, transcription_source = _transcribe(
@@ -230,6 +230,13 @@ def run_suno_drum_pipeline(
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+
+    # A failed rerun must not erase the previous successful optional outputs.
+    # After a successful non-humanized export, remove now-stale optional files.
+    if humanized_path is None:
+        humanized_candidate.unlink(missing_ok=True)
+    if groove_path is None:
+        groove_candidate.unlink(missing_ok=True)
 
     return PipelineOutputs(
         tempo_midi=tempo_path,
