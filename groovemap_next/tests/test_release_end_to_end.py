@@ -1,5 +1,7 @@
 """Offline release gate: MIDI/JSON export and failure safety, no AI weights."""
 import json
+import struct
+import numpy as np
 from pathlib import Path
 
 import mido
@@ -128,3 +130,60 @@ def test_publication_failure_rolls_back_every_previous_output(tmp_path, monkeypa
     assert has_failed
     for target, expected in old.items():
         assert target.read_bytes() == expected
+
+
+def test_actual_pcm_wav_dsp_to_midi_without_ai_checkpoint(tmp_path, monkeypatch):
+    """Full real WAV -> real 3-class DSP -> tempo MIDI/drum MIDI/JSON/groove.
+
+    Only Beat This! is stubbed. No drum transcriber mocking and no model weights.
+    """
+    sr = 48000
+    audio = np.zeros(sr * 3, dtype=np.float32)
+    n = np.arange(round(sr * 0.15))
+    kick = (
+        0.5 * np.sin(2 * np.pi * 70 * n / sr)
+        * np.exp(-n / (sr * 0.045))
+    ).astype(np.float32)
+    for onset in (0.5, 1.5, 2.5):
+        i = round(onset * sr)
+        audio[i:i + len(kick)] += kick
+    pcm16 = (np.clip(audio, -1, 1) * 32767).astype("<i2")
+    fmt = struct.pack("<HHIIHH", 1, 1, sr, sr * 2, 2, 16)
+    body = b"WAVE"
+    for name, data in ((b"fmt ", fmt), (b"data", pcm16.tobytes())):
+        body += name + struct.pack("<I", len(data)) + data
+        if len(data) & 1:
+            body += b"\x00"
+    wav = tmp_path / "synthetic-stem.wav"
+    wav.write_bytes(b"RIFF" + struct.pack("<I", len(body)) + body)
+
+    class BeatStub:
+        def __init__(self, **kwargs):
+            pass
+
+        def analyze(self, source):
+            return BeatAnalysis(
+                beats_sec=(0.0, 0.5, 1.0, 1.5, 2.0, 2.5),
+                downbeats_sec=(0.0, 2.0),
+                source="offline-controlled-beat-fixture",
+            )
+
+    monkeypatch.setattr(pipeline, "BeatThisTracker", BeatStub)
+    prefix = tmp_path / "actual-dsp"
+    out = pipeline.run_suno_drum_pipeline(
+        wav, prefix, humanize_source=True, pattern_bars=1
+    )
+    payload = json.loads(out.timing_json.read_text(encoding="utf-8"))
+    detected = [
+        e["time_sec"] for e in payload["drum_events"] if e["note"] == 36
+    ]
+    for onset in (0.5, 1.5, 2.5):
+        assert any(abs(t - onset) < 0.02 for t in detected)
+    midi = mido.MidiFile(out.drum_midi)
+    assert len([
+        m for track in midi.tracks for m in track
+        if m.type == "note_on" and m.note == 36 and m.velocity > 0
+    ]) >= 3
+    assert out.tempo_midi.stat().st_size > 0
+    assert out.humanized_midi.stat().st_size > 0
+    assert out.groove_json.stat().st_size > 0
