@@ -11,7 +11,7 @@ PRs #2 / #3, and the release-safety hardening is PR #4.
 To minimize time to real-machine validation, freeze the *testable core*
 scope at the V3 CLI:
 
-- Real isolated SUNO drum PCM WAV input.
+- Real isolated SUNO drum WAV input: 8/16/24/32-bit integer PCM or 32-bit IEEE float (ordinary RIFF and WAVE_FORMAT_EXTENSIBLE). Other formats are explicit errors.
 - Beat This! variable-tempo estimation.
 - Three-class offline clean-room DSP fallback: kick, snare, closed hi-hat.
 - Export `*_tempo.mid`, `*_drums.mid`, `*_timing.json`.
@@ -83,8 +83,8 @@ project sample rate, report JSON, and Cubase version.
 | Gate | Status as of 2026-11-02 |
 |---|---|
 | V3 functionality present in PR #3 | **Source verified** |
-| Failure-safe export patch in PR #4 | **Committed; unexecuted** |
-| Local full pytest / syntax compile | **NOT RUN in assistant environment** |
+| Failure-safe export patch in PR #4 | **Committed; full project pytest unexecuted** |
+| Local full pytest / syntax compile | **NOT RUN against checkout**; isolated float32 parser replica: 4/4 PASS, not a substitute |
 | Real SUNO stem inference + model startup | **NOT RUN** |
 | DAW import, drift and listening | **NOT RUN** |
 | Windows V1 GUI EXE integration with V3 | **NOT IMPLEMENTED** |
