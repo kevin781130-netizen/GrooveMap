@@ -46,6 +46,25 @@ PASS requires both source compilation and all bundled pytest cases to return
 0. Any failure or missing dependency is **BLOCKED**. Results must be observed
 on a real runner; committed test source alone does not establish PASS.
 
+
+## Verified offline acceptance evidence
+
+The original source (13 module files), all original 12 pytest files, and
+relevant project metadata were restored byte-for-byte in a Linux Python 3.13
+runner. All 30 files matched their GitHub Git blob SHA values at source commit
+`dcaad6faa24a40cdbebe0b2dc718c98e4969946e`. Full repository-local
+`python scripts/release_gate.py --offline` result: compile PASS, 58/58 pytest
+PASS. A pure-Python wheel was built, installed into a separate Python
+virtual environment, and its CLI entry points executed. The wheel's 13 Python
+modules match the source exactly. Parent environment NumPy/Mido were reused
+for the CLI smoke because network egress is restricted. See
+`RC_OFFLINE_EVIDENCE_20261102.json` for checksums and limitations.
+
+This establishes **offline pre-machine readiness for the V3 Python CLI** only,
+not final product release approval. It does not prove genuine Beat This! model
+inference, real SUNO/Cubase musical correctness, Windows installation, or V1 GUI
+integration. None of those are included in the 58/58 result.
+
 ## Real-machine structural acceptance
 
 Install optional Beat This! dependency (model download/cache availability
@@ -83,16 +102,18 @@ project sample rate, report JSON, and Cubase version.
 | Gate | Status as of 2026-11-02 |
 |---|---|
 | V3 functionality present in PR #3 | **Source verified** |
-| Failure-safe export patch in PR #4 | **Committed; full project pytest unexecuted** |
-| Local full pytest / syntax compile | **NOT RUN against checkout**; isolated float32 parser replica: 4/4 PASS, not a substitute |
+| Failure-safe export patch in PR #4 | **58/58 offline pytest PASS** on Git-blob-identical source |
+| Local full pytest / syntax compile | **PASS** — all 12 original test files, 13 original core modules; 30 source files verified byte-for-byte against GitHub |
+| Python CLI wheel build + install + CLI help | **PASS** — `groovemap_next-0.2.0-py3-none-any.whl`, SHA-256 recorded in evidence |
 | Real SUNO stem inference + model startup | **NOT RUN** |
 | DAW import, drift and listening | **NOT RUN** |
 | Windows V1 GUI EXE integration with V3 | **NOT IMPLEMENTED** |
 | Licensed ONNX 20-class weights | **NOT PROVIDED (optional)** |
 | Release/milestone tag and main merge | **NOT PERFORMED** |
 
-**Meaning of 'only real-machine testing left':** it can only be said for the
-*V3 CLI* after offline preflight has actually passed. The unified Windows GUI
-is a separate, currently incomplete packaging/integration scope.
+**Meaning of 'only real-machine testing left':** For the **V3 Python CLI
+baseline**, offline preflight and pure-Python wheel packaging are now verified.
+The remaining acceptance is real model/stem operation and DAW/OS behavior.
+The unified Windows GUI remains a separate incomplete integration scope.
 
 Do not merge PR #4 or tag a release based only on the presence of this checklist.
