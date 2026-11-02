@@ -92,11 +92,27 @@ def _validate_outputs(prefix: Path, *, humanized: bool) -> dict:
     ])
     if notes != expected:
         raise ValueError("MIDI event/tick/velocity mismatch vs JSON source times")
-    tempo_count = sum(
-        msg.type == "set_tempo" for track in tempo.tracks for msg in track
-    )
-    if tempo_count < len(payload["tempo_points"]):
-        raise ValueError("tempo map lost MIDI tempo points")
+    # A file can have the expected number of tempo messages while carrying
+    # wrong BPMs or wrong tick positions. Verify exact variable-tempo events.
+    import mido
+
+    actual_tempo = set()
+    for track in tempo.tracks:
+        tick = 0
+        for msg in track:
+            tick += msg.time
+            if msg.type == "set_tempo":
+                actual_tempo.add((tick, msg.tempo))
+    expected_tempo = {
+        (
+            int(payload["tick_shift"]) + int(point["beat_index"]) * int(payload["ppq"]),
+            mido.bpm2tempo(float(point["bpm"])),
+        )
+        for point in payload["tempo_points"]
+        if int(payload["tick_shift"]) + int(point["beat_index"]) * int(payload["ppq"]) >= 0
+    }
+    if not expected_tempo or not expected_tempo.issubset(actual_tempo):
+        raise ValueError("tempo MIDI tick/BPM mismatch vs JSON tempo points")
     if humanized:
         groove = json.loads(paths["_groove.json"].read_text(encoding="utf-8"))
         if groove.get("schema") != "groovemap-groove-v1":
