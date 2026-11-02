@@ -201,22 +201,27 @@ def transcribe_drum_stem(wav_path: str | Path, *, sensitivity: float = 1.0) -> l
         z_high, threshold=hat_th, min_gap_frames=max(1, round(0.025 * sr / hop))
     )
 
+    # Spectral-flux peaks are indexed by the START of an overlapping FFT
+    # window; this backdates attacks by roughly half the window duration.
+    # Timestamp them at the window centre to avoid a systematic 20–32 ms
+    # early MIDI trigger (48 kHz / 16 kHz respectively).
+    onset_shift_sec = 0.5 * frame_size / sr
     events: list[DrumEvent] = []
     for i in kick_idx:
         if low[i] >= 0.25 * max(mid[i], high[i], 1e-6):
             events.append(
-                DrumEvent(max(0.0, i * hop / sr), 36, _velocity(z_low[i], kick_th), "kick")
+                DrumEvent(max(0.0, i * hop / sr + onset_shift_sec), 36, _velocity(z_low[i], kick_th), "kick")
             )
     for i in snare_idx:
         if high[i] <= 2.2 * max(mid[i], 1e-6):
             events.append(
-                DrumEvent(max(0.0, i * hop / sr), 38, _velocity(z_mid[i], snare_th), "snare")
+                DrumEvent(max(0.0, i * hop / sr + onset_shift_sec), 38, _velocity(z_mid[i], snare_th), "snare")
             )
     for i in hat_idx:
         near_snare = any(abs(i - s) <= 2 for s in snare_idx)
         if not near_snare or high[i] >= 1.15 * max(mid[i], 1e-6):
             events.append(
-                DrumEvent(max(0.0, i * hop / sr), 42, _velocity(z_high[i], hat_th), "closed_hat")
+                DrumEvent(max(0.0, i * hop / sr + onset_shift_sec), 42, _velocity(z_high[i], hat_th), "closed_hat")
             )
 
     return sorted(events, key=lambda e: (e.time_sec, e.note))
