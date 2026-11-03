@@ -206,3 +206,21 @@ def test_keyboard_interrupt_during_publication_restores_old_set(tmp_path, monkey
         pipeline._publish_staged_outputs(staged,(),backup_dir=tmp_path/'backup')
     assert all(p.read_bytes()==b'old' for p in targets)
     assert not list(tmp_path.glob('.*publication-lock'))
+
+
+def test_rollback_failure_keeps_recoverable_backups(tmp_path, monkeypatch, stub_ai):
+    prefix=tmp_path/'song'
+    tempo=tmp_path/'song_tempo.mid';tempo.write_bytes(b'prior-tempo')
+    drums=tmp_path/'song_drums.mid';drums.write_bytes(b'prior-drums')
+    replace=pipeline.os.replace
+    def fail_publication_and_recovery(src,dst):
+        if str(dst).endswith('_drums.mid') or 'previous_0' in str(src):
+            raise OSError('persistent storage fault')
+        return replace(src,dst)
+    monkeypatch.setattr(pipeline.os,'replace',fail_publication_and_recovery)
+    with pytest.raises(RuntimeError, match='recovery required'):
+        pipeline.run_suno_drum_pipeline(tmp_path/'input.wav',prefix)
+    backups=list(tmp_path.glob('.song.release-*/backup/previous_0'))
+    assert len(backups)==1 and backups[0].read_bytes()==b'prior-tempo'
+    assert (backups[0].parent/'recovery.json').is_file()
+    assert (tmp_path/'.song_tempo.mid.publication-lock').is_dir()

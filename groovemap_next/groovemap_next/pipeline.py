@@ -5,7 +5,8 @@ import json
 import os
 import shutil
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from contextlib import contextmanager
+from tempfile import mkdtemp
 
 from .beat_tracker import BeatThisTracker
 from .drum_transcriber import transcribe_drum_stem
@@ -18,6 +19,25 @@ from .midi_export import write_drum_midi, write_tempo_midi
 from .models import PipelineOutputs
 from .remap import load_mapping, remap_events
 from .tempo_map import build_tempo_map, choose_tick_shift
+
+
+class PublicationRecoveryRequired(RuntimeError):
+    """Storage failure prevented rollback; keep staging and lock for recovery."""
+
+
+@contextmanager
+def _output_staging(prefix: Path):
+    staging = Path(mkdtemp(prefix=f".{prefix.name}.release-", dir=prefix.parent))
+    try:
+        yield staging
+    except PublicationRecoveryRequired:
+        # Do not let temporary-directory cleanup destroy the last good files.
+        raise
+    except BaseException:
+        shutil.rmtree(staging)
+        raise
+    else:
+        shutil.rmtree(staging)
 
 
 def _transcribe(
@@ -81,10 +101,15 @@ def _publish_staged_outputs(
         lock.mkdir()
     except FileExistsError as exc:
         raise FileExistsError(f"output publication is already locked: {lock}") from exc
+    retain_lock = False
     try:
         _publish_unlocked(staged, stale, backup_dir=backup_dir)
+    except PublicationRecoveryRequired:
+        retain_lock = True
+        raise
     finally:
-        lock.rmdir()
+        if not retain_lock:
+            lock.rmdir()
 
 
 def _publish_unlocked(
@@ -109,6 +134,12 @@ def _publish_unlocked(
             shutil.copy2(destination, backup)
             backups[destination] = backup
 
+    # Save the complete recovery plan before the first destination changes.
+    (backup_dir / "recovery.json").write_text(json.dumps({
+        str(destination.resolve()): str(backups[destination].resolve())
+        if destination in backups else None
+        for destination in destinations
+    }, indent=2), encoding="utf-8")
     changed: list[Path] = []
     try:
         for destination, prepared in staged.items():
@@ -118,13 +149,22 @@ def _publish_unlocked(
             if destination.exists():
                 destination.unlink()
                 changed.append(destination)
-    except BaseException:
+    except BaseException as publication_error:
+        rollback_errors = []
         for destination in reversed(changed):
-            previous = backups.get(destination)
-            if previous is not None:
-                os.replace(previous, destination)
-            else:
-                destination.unlink(missing_ok=True)
+            try:
+                previous = backups.get(destination)
+                if previous is not None:
+                    os.replace(previous, destination)
+                else:
+                    destination.unlink(missing_ok=True)
+            except BaseException as exc:
+                rollback_errors.append(f"{destination}: {exc}")
+        if rollback_errors:
+            raise PublicationRecoveryRequired(
+                f"output recovery required; retained {backup_dir}; "
+                + "; ".join(rollback_errors)
+            ) from publication_error
         raise
 
 
@@ -194,8 +234,7 @@ def run_suno_drum_pipeline(
         repair_missing_beats=True,
     )
 
-    with TemporaryDirectory(prefix=f".{prefix.name}.release-", dir=prefix.parent) as temp:
-        staging = Path(temp)
+    with _output_staging(prefix) as staging:
         staged_prefix = staging / prefix.name
         staged_tempo_path = staged_prefix.with_name(staged_prefix.name + "_tempo.mid")
         staged_drums_path = staged_prefix.with_name(staged_prefix.name + "_drums.mid")
