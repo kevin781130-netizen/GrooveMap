@@ -28,8 +28,7 @@ $Ckpt = "C:\path\to\trusted_final0.ckpt"
 $Out  = "C:\gm_accept_out\song01"
 
 py -3.11 -m venv $Venv
-& "$Venv\Scripts\python.exe" -m pip install --no-cache-dir "$Repo"
-& "$Venv\Scripts\pip.exe" install --no-cache-dir "groovemap-next[ai]"
+& "$Venv\Scripts\python.exe" -m pip install --no-cache-dir "${Repo}[ai]"
 Get-FileHash $Wav -Algorithm SHA256
 Get-FileHash $Ckpt -Algorithm SHA256
 
