@@ -106,6 +106,8 @@ def _read_pcm_wav(path: str | Path) -> tuple[bytes, int, int, int, bool]:
         raise ValueError(
             f"unsupported WAV block alignment: {block_align} (expected {expected_align})"
         )
+    if len(pcm) % expected_align:
+        raise ValueError("incomplete WAV frame")
     return pcm, int(channels), int(sample_rate), sample_width, float_pcm
 
 def load_wav_mono(path: str | Path) -> tuple[np.ndarray, int]:

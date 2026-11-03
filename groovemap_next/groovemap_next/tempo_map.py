@@ -1,7 +1,7 @@
 """Convert beat timestamps into an exact per-beat tempo map."""
 from __future__ import annotations
 from bisect import bisect_right
-from math import ceil
+from math import ceil, isclose
 from statistics import median
 from typing import Iterable
 from .models import BeatAnalysis, TempoMap, TempoPoint
@@ -90,6 +90,11 @@ def build_tempo_map(
         if interval <= 0:
             raise ValueError(f"non-positive beat interval at index {i}: {interval}")
         bpm = 60.0 / interval
+        # Subtracting absolute timestamps can round an exact supported
+        # boundary (e.g. 2.45 - 2.3) just outside the range.
+        for boundary in (20.0, 400.0):
+            if isclose(bpm, boundary, rel_tol=1e-12):
+                bpm = boundary
         if not 20.0 <= bpm <= 400.0:
             raise ValueError(
                 f"beat interval {i} implies {bpm:.3f} BPM; refusing to export "

@@ -187,3 +187,22 @@ def test_actual_pcm_wav_dsp_to_midi_without_ai_checkpoint(tmp_path, monkeypatch)
     assert out.tempo_midi.stat().st_size > 0
     assert out.humanized_midi.stat().st_size > 0
     assert out.groove_json.stat().st_size > 0
+
+
+def test_keyboard_interrupt_during_publication_restores_old_set(tmp_path, monkeypatch):
+    targets = [tmp_path/'a_tempo.mid',tmp_path/'a_drums.mid']
+    staged={}
+    for i,target in enumerate(targets):
+        target.write_bytes(b'old')
+        prepared=tmp_path/f'prepared{i}';prepared.write_bytes(b'new')
+        staged[target]=prepared
+    replace=pipeline.os.replace
+    def interrupt(src,dst):
+        if src==staged[targets[1]]:
+            raise KeyboardInterrupt('injected only in isolated test directory')
+        return replace(src,dst)
+    monkeypatch.setattr(pipeline.os,'replace',interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        pipeline._publish_staged_outputs(staged,(),backup_dir=tmp_path/'backup')
+    assert all(p.read_bytes()==b'old' for p in targets)
+    assert not list(tmp_path.glob('.*publication-lock'))

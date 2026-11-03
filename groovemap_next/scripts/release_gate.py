@@ -96,30 +96,41 @@ def _validate_outputs(prefix: Path, *, humanized: bool) -> dict:
     # wrong BPMs or wrong tick positions. Verify exact variable-tempo events.
     import mido
 
-    actual_tempo = set()
-    for track in tempo.tracks:
-        tick = 0
-        for msg in track:
-            tick += msg.time
-            if msg.type == "set_tempo":
-                actual_tempo.add((tick, msg.tempo))
-    expected_tempo = {
-        (
-            int(payload["tick_shift"]) + int(point["beat_index"]) * int(payload["ppq"]),
-            mido.bpm2tempo(float(point["bpm"])),
-        )
+    expected_tempo = [(0, mido.bpm2tempo(float(payload["tempo_points"][0]["bpm"])))]
+    expected_tempo += [
+        (int(payload["tick_shift"]) + int(point["beat_index"]) * int(payload["ppq"]),
+         mido.bpm2tempo(float(point["bpm"])))
         for point in payload["tempo_points"]
         if int(payload["tick_shift"]) + int(point["beat_index"]) * int(payload["ppq"]) >= 0
-    }
-    if not expected_tempo or not expected_tempo.issubset(actual_tempo):
-        raise ValueError("tempo MIDI tick/BPM mismatch vs JSON tempo points")
+    ]
+    expected_tempo.sort(key=lambda item: item[0])
+
+    def validate_tempo(midi):
+        tick = 0
+        actual = []
+        for msg in mido.merge_tracks(midi.tracks):
+            tick += msg.time
+            if msg.type == "set_tempo":
+                actual.append((tick, msg.tempo))
+        if actual != expected_tempo:
+            raise ValueError("tempo MIDI tick/BPM mismatch vs JSON tempo points")
+
+    validate_tempo(tempo)
+    validate_tempo(drums)
     if humanized:
         groove = json.loads(paths["_groove.json"].read_text(encoding="utf-8"))
         if groove.get("schema") != "groovemap-groove-v1":
             raise ValueError("unexpected groove schema")
-        _, humanized_notes = _midi_notes(paths["_drums_humanized.mid"])
+        humanized_midi, humanized_notes = _midi_notes(paths["_drums_humanized.mid"])
         if len(humanized_notes) != len(payload["humanized_events"] or []):
             raise ValueError("humanized note count mismatch")
+        expected_humanized = sorted([
+            (_event_tick(payload, event["time_sec"]), event["note"], event["velocity"], 9)
+            for event in payload["humanized_events"]
+        ])
+        if humanized_notes != expected_humanized:
+            raise ValueError("humanized event/tick/velocity mismatch vs JSON source times")
+        validate_tempo(humanized_midi)
     return {
         "ok": True,
         "mode": "real-stem-structural",

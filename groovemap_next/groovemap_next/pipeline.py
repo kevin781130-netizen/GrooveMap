@@ -73,6 +73,26 @@ def _publish_staged_outputs(
     *,
     backup_dir: Path,
 ) -> None:
+    # mkdir is atomic across processes and portable to Windows. Never remove an
+    # existing lock: its owner may still be publishing or recovering a failure.
+    first = next(iter(staged))
+    lock = first.with_name("." + first.name + ".publication-lock")
+    try:
+        lock.mkdir()
+    except FileExistsError as exc:
+        raise FileExistsError(f"output publication is already locked: {lock}") from exc
+    try:
+        _publish_unlocked(staged, stale, backup_dir=backup_dir)
+    finally:
+        lock.rmdir()
+
+
+def _publish_unlocked(
+    staged: dict[Path, Path],
+    stale: tuple[Path, ...],
+    *,
+    backup_dir: Path,
+) -> None:
     """Publish a completed run and restore prior files on a publish error.
 
     All candidate MIDI/JSON files are written and validated before publication.
@@ -130,6 +150,13 @@ def run_suno_drum_pipeline(
     source = Path(drums_wav)
     prefix = Path(output_prefix)
     prefix.parent.mkdir(parents=True, exist_ok=True)
+
+    destinations = [prefix.with_name(prefix.name + suffix) for suffix in (
+        "_tempo.mid", "_drums.mid", "_timing.json",
+        "_drums_humanized.mid", "_groove.json",
+    )]
+    if any(path.resolve() == source.resolve() for path in destinations):
+        raise ValueError("output paths must not overwrite source audio")
 
     # Validate before doing expensive inference so metadata and rendering always
     # describe the exact same effective settings.

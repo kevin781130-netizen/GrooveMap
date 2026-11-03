@@ -73,3 +73,26 @@ def test_structural_gate_rejects_stubbed_beat_source(exported):
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ValueError, match="requires real Beat This"):
         _validate_outputs(exported, humanized=True)
+
+
+def test_gate_rejects_humanized_velocity_change(exported):
+    import mido
+    path = exported.with_name(exported.name + '_drums_humanized.mid')
+    midi = mido.MidiFile(path)
+    for track in midi.tracks:
+        for msg in track:
+            if msg.type == 'note_on' and msg.velocity:
+                msg.velocity = 1
+    midi.save(path)
+    with pytest.raises(ValueError, match='humanized event/tick/velocity'):
+        _validate_outputs(exported, humanized=True)
+
+
+def test_gate_rejects_extra_same_tick_tempo(exported):
+    import mido
+    path = exported.with_name(exported.name + '_tempo.mid')
+    midi = mido.MidiFile(path)
+    midi.tracks[0].insert(3, mido.MetaMessage('set_tempo',tempo=1000000,time=0))
+    midi.save(path)
+    with pytest.raises(ValueError, match='tempo MIDI tick/BPM mismatch'):
+        _validate_outputs(exported, humanized=True)
