@@ -1,0 +1,58 @@
+{
+  "source_sha": "50adca3eb7355f5c1f97e1c2a0c610ff3d2c7c90",
+  "wheel_sha256": "bb745c3ac13506a0704692cf33b4d8f2e5054e7d418ce0ad3da5342d90831e8d",
+  "checks": [
+    {
+      "module": "groovemap_next/__init__.py",
+      "identical": true
+    },
+    {
+      "module": "groovemap_next/beat_tracker.py",
+      "identical": true
+    },
+    {
+      "module": "groovemap_next/cli.py",
+      "identical": true
+    },
+    {
+      "module": "groovemap_next/drum_taxonomy.py",
+      "identical": true
+    },
+    {
+      "module": "groovemap_next/drum_transcriber.py",
+      "identical": true
+    },
+    {
+      "module": "groovemap_next/groove_humanizer.py",
+      "identical": true
+    },
+    {
+      "module": "groovemap_next/midi_export.py",
+      "identical": true
+    },
+    {
+      "module": "groovemap_next/midi_humanize.py",
+      "identical": true
+    },
+    {
+      "module": "groovemap_next/models.py",
+      "identical": true
+    },
+    {
+      "module": "groovemap_next/onnx_drum.py",
+      "identical": true
+    },
+    {
+      "module": "groovemap_next/pipeline.py",
+      "identical": true
+    },
+    {
+      "module": "groovemap_next/remap.py",
+      "identical": true
+    },
+    {
+      "module": "groovemap_next/tempo_map.py",
+      "identical": true
+    }
+  ]
+}

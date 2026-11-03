@@ -1,0 +1,61 @@
+tempo MIDI     : /workspace/gm-artifacts/candidate-run/輸出 空白_tempo.mid
+drum MIDI      : /workspace/gm-artifacts/candidate-run/輸出 空白_drums.mid
+timing JSON    : /workspace/gm-artifacts/candidate-run/輸出 空白_timing.json
+humanized MIDI : /workspace/gm-artifacts/candidate-run/輸出 空白_drums_humanized.mid
+groove template: /workspace/gm-artifacts/candidate-run/輸出 空白_groove.json
+{
+  "mode": "INSTALLED_WHEEL_STRUCTURAL_EXPLICIT_STUB_NOT_REAL_INFERENCE",
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "prefix": "/workspace/gm-candidate-venv",
+  "imports": {
+    "groovemap_next": "/workspace/gm-candidate-venv/lib/python3.12/site-packages/groovemap_next/__init__.py",
+    "numpy": "/workspace/gm-candidate-venv/lib/python3.12/site-packages/numpy/__init__.py",
+    "mido": "/workspace/gm-candidate-venv/lib/python3.12/site-packages/mido/__init__.py"
+  },
+  "versions": {
+    "groovemap-next": "0.2.0",
+    "numpy": "2.5.4",
+    "mido": "1.3.3"
+  },
+  "commands": [
+    {
+      "args": [
+        "humanize-midi",
+        "--midi",
+        "/workspace/gm-artifacts/candidate-run/輸出 空白_drums.mid",
+        "--timing",
+        "/workspace/gm-artifacts/candidate-run/輸出 空白_timing.json",
+        "--groove",
+        "/workspace/gm-artifacts/candidate-run/輸出 空白_groove.json",
+        "--input-has-groovemap-preroll",
+        "--out",
+        "/workspace/gm-artifacts/candidate-run/reapplied.mid"
+      ],
+      "exit_code": 0,
+      "stdout": "humanized MIDI : /workspace/gm-artifacts/candidate-run/reapplied.mid\n",
+      "stderr": ""
+    },
+    {
+      "args": [
+        "suno",
+        "--drums",
+        "/workspace/gm-artifacts/candidate-run/合法性未主張 synthetic 鼓.wav",
+        "--out",
+        "/workspace/gm-artifacts/candidate-run/輸出 空白"
+      ],
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/workspace/gm-candidate-venv/lib/python3.12/site-packages/groovemap_next/beat_tracker.py\", line 10, in __init__\n    from beat_this.inference import Audio2Beats\nModuleNotFoundError: No module named 'beat_this'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/workspace/gm-candidate-venv/bin/groovemap-next\", line 8, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/workspace/gm-candidate-venv/lib/python3.12/site-packages/groovemap_next/cli.py\", line 75, in main\n    outputs = run_suno_drum_pipeline(\n              ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/workspace/gm-candidate-venv/lib/python3.12/site-packages/groovemap_next/pipeline.py\", line 224, in run_suno_drum_pipeline\n    tracker = BeatThisTracker(\n              ^^^^^^^^^^^^^^^^\n  File \"/workspace/gm-candidate-venv/lib/python3.12/site-packages/groovemap_next/beat_tracker.py\", line 12, in __init__\n    raise RuntimeError('Install AI support with: pip install -e \".[ai]\"') from exc\nRuntimeError: Install AI support with: pip install -e \".[ai]\"\n"
+    }
+  ],
+  "entry_points": [
+    "EntryPoint(name='groovemap-next', value='groovemap_next.cli:main', group='console_scripts')"
+  ],
+  "venv_config": "home = /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin\ninclude-system-site-packages = false\nversion = 3.12.14\nexecutable = /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3.12\ncommand = /opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python -m venv /workspace/gm-candidate-venv\n",
+  "source_sha256_before": "6a080068d74a795e15ea6e29b121af703b3c666b55dbca1508d5b9188afcf1e9",
+  "source_sha256_after": "6a080068d74a795e15ea6e29b121af703b3c666b55dbca1508d5b9188afcf1e9",
+  "events": 8,
+  "humanized_events": 8,
+  "independent_mido_seconds_notes_offs_json": "PASS",
+  "exit_code": 0
+}

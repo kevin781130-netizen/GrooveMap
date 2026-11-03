@@ -1,0 +1,168 @@
+{
+  "starting_sha": "eb445802cb56a3472b6e38c7fc8b195672c6eb0a",
+  "tested_source_sha": "50adca3eb7355f5c1f97e1c2a0c610ff3d2c7c90",
+  "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "python": "3.12.14",
+  "prior_evidence": {
+    "reported_source": "5c2004cce74e2622394083c8326896893ffd6ca9",
+    "reported_wheel_sha256": "7924dee7c4001e01c2d27fd45fe0f98c288af0c0115e2abf599e56da65bb211b",
+    "gate_json_exit_codes": [
+      0,
+      0
+    ],
+    "raw_prior_wheel_available": false,
+    "raw_prior_install_logs_available": false,
+    "conclusion": "Prior report and exit codes inspected. Old wheel is absent at recorded /tmp/claude-0 path; its bytes/hash cannot be independently verified here. New wheel/install validation supersedes these claims. Stub evidence remains structural only."
+  },
+  "network_host_check": {
+    "exit_code": 56,
+    "status": "BLOCKED_POLICY_403",
+    "requests": 1
+  },
+  "real_model": "NOT_RUN: no trusted checkpoint or licensed real drum stem supplied",
+  "real_model_claim": false,
+  "github_actions_used": false,
+  "main_modified": false,
+  "commands": [
+    {
+      "cwd": "/workspace/groovemap-v3-audit/groovemap_next",
+      "command": "/workspace/gm-audit-venv/bin/python scripts/release_gate.py --offline --report-json rc_evidence/audit-20261103/baseline-gate.json",
+      "exit_code": 0
+    },
+    {
+      "command": "pytest -q tests/test_audit_safety.py (before patch)",
+      "exit_code": 1,
+      "failed": 5
+    },
+    {
+      "command": "pytest -q tests/test_release_gate.py (before gate patch)",
+      "exit_code": 1,
+      "failed": 2
+    },
+    {
+      "command": "pytest -q tests/test_audit_timeline.py (before boundary patch)",
+      "exit_code": 1,
+      "failed": 1,
+      "passed": 1
+    },
+    {
+      "command": "pytest -q tests/test_release_end_to_end.py::test_rollback_failure_keeps_recoverable_backups (before recovery patch)",
+      "exit_code": 1
+    },
+    {
+      "command": "/workspace/gm-audit-venv/bin/python scripts/release_gate.py --offline --report-json rc_evidence/audit-20261103/final-gate.json",
+      "exit_code": 0
+    },
+    {
+      "command": "python -m build --wheel --outdir /workspace/gm-artifacts/final-dist",
+      "exit_code": 0
+    },
+    {
+      "cwd": "/workspace/gm-artifacts/final-installed-run",
+      "command": "env -u PYTHONPATH -u PYTHONHOME /workspace/gm-final-venv/bin/python installed_validation.py",
+      "exit_code": 0
+    },
+    {
+      "cwd": "/workspace/gm-artifacts/final-installed-run",
+      "command": "python -m pytest -q /workspace/gm-artifacts/installed-tests",
+      "exit_code": 2,
+      "diagnosis": "Validation harness cwd omitted copied scripts namespace; no product test ran. Corrected cwd to /workspace/gm-artifacts and reran unchanged tests."
+    },
+    {
+      "command": "pip wheel --no-index --no-deps --no-build-isolation . --wheel-dir /workspace/gm-artifacts/candidate",
+      "exit_code": 0,
+      "note": "Existing setuptools backend, no artifact verification disabled."
+    },
+    {
+      "command": "fresh venv pip install --no-index --find-links offline-wheelhouse candidate.whl[dev]",
+      "exit_code": 0,
+      "note": "Unaltered cached wheel bytes; hashes matched cached TLS-fetched PyPI index. No copied site-packages."
+    },
+    {
+      "cwd": "/workspace/gm-artifacts",
+      "command": "env -u PYTHONPATH -u PYTHONHOME /workspace/gm-candidate-venv/bin/python -m pytest -q installed-tests",
+      "exit_code": 0,
+      "passed": 71
+    },
+    {
+      "command": "official beat_this.preprocessing.load_audio(synthetic.wav)",
+      "exit_code": 1,
+      "diagnosis": "Confirmed missing decoder chain. Final adapter uses existing validated decoder + official Audio2Beats. No new decoder dependency remains."
+    },
+    {
+      "command": "actual upstream signal2spect on decoded WAV and 16/44.1/48 kHz arrays",
+      "exit_code": 0,
+      "note": "Preprocessing only; no neural model created or executed."
+    },
+    {
+      "command": "copied installed tests before manifest fixture copied",
+      "exit_code": 1,
+      "passed": 68,
+      "failed": 1,
+      "diagnosis": "Harness fixture omission; copied unchanged fixture, all final tests passed."
+    },
+    {
+      "command": "API inspection Postprocessor.forward",
+      "exit_code": 1,
+      "diagnosis": "Inspection used wrong attribute; corrected to __call__."
+    },
+    {
+      "command": "installed_validation.py initial console-script run",
+      "exit_code": 0,
+      "diagnosis": "Console script SystemExit ended harness before postchecks. Missing report detected; harness catches successful SystemExit; final complete rerun recorded in candidate-validation-complete.log."
+    },
+    {
+      "command": "crash_probe.py /workspace/gm-artifacts/crash-fixture",
+      "exit_code": 0,
+      "child_exit": 73,
+      "note": "Installed publisher interrupted after first rename; retained manifest/backups; operator recovery verified."
+    },
+    {
+      "command": "installed audio_matrix.py",
+      "exit_code": 0,
+      "decoded_combinations": 30
+    },
+    {
+      "command": "saved install_script repeated",
+      "exit_code": 0,
+      "pip_check": 0
+    },
+    {
+      "command": "PYTHONSAFEPATH=1 real-gate installed import check",
+      "exit_code": 0
+    },
+    {
+      "command": "pre-push git fetch origin fix/groovemap-v3-preflight-output-safety-20261102",
+      "exit_code": 0,
+      "remote_sha": "eb445802cb56a3472b6e38c7fc8b195672c6eb0a"
+    }
+  ],
+  "final_status": {
+    "CODE_AUDIT_PASS": true,
+    "REAL_MODEL_PENDING": true,
+    "PRE_DEVICE_RC_READY": false,
+    "real_inference": "NOT_RUN",
+    "cubase": "NOT_RUN"
+  },
+  "final_gate": {
+    "source_tests": 71,
+    "installed_wheel_tests": 71,
+    "failed": 0,
+    "skipped": 0,
+    "xfailed": 0,
+    "pip_check": "PASS",
+    "installed_cli_structural": "PASS_EXPLICIT_STUB",
+    "actual_upstream_preprocessing": "PASS_NOT_INFERENCE"
+  },
+  "candidate_wheel": {
+    "file": "groovemap_next-0.2.0-py3-none-any.whl",
+    "sha256": "bb745c3ac13506a0704692cf33b4d8f2e5054e7d418ce0ad3da5342d90831e8d",
+    "size": 29141
+  },
+  "approval_block": {
+    "operation": "network installation of soundfile",
+    "executed": false,
+    "reason": "Automatic approval review usage limit, not an unsafe-action decision. Shared-decoder fix requires no new network dependency.",
+    "resolved": "Later permitted network fetch succeeded after the service reset time; no bypass used."
+  }
+}

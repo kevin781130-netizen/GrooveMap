@@ -1,0 +1,188 @@
+{
+  "matrix": [
+    {
+      "sr": 16000,
+      "channels": 1,
+      "bits": 8,
+      "status": "PASS"
+    },
+    {
+      "sr": 16000,
+      "channels": 1,
+      "bits": 16,
+      "status": "PASS"
+    },
+    {
+      "sr": 16000,
+      "channels": 1,
+      "bits": 24,
+      "status": "PASS"
+    },
+    {
+      "sr": 16000,
+      "channels": 1,
+      "bits": 32,
+      "status": "PASS"
+    },
+    {
+      "sr": 16000,
+      "channels": 1,
+      "format": "FLOAT32",
+      "status": "PASS"
+    },
+    {
+      "sr": 16000,
+      "channels": 2,
+      "bits": 8,
+      "status": "PASS"
+    },
+    {
+      "sr": 16000,
+      "channels": 2,
+      "bits": 16,
+      "status": "PASS"
+    },
+    {
+      "sr": 16000,
+      "channels": 2,
+      "bits": 24,
+      "status": "PASS"
+    },
+    {
+      "sr": 16000,
+      "channels": 2,
+      "bits": 32,
+      "status": "PASS"
+    },
+    {
+      "sr": 16000,
+      "channels": 2,
+      "format": "FLOAT32",
+      "status": "PASS"
+    },
+    {
+      "sr": 44100,
+      "channels": 1,
+      "bits": 8,
+      "status": "PASS"
+    },
+    {
+      "sr": 44100,
+      "channels": 1,
+      "bits": 16,
+      "status": "PASS"
+    },
+    {
+      "sr": 44100,
+      "channels": 1,
+      "bits": 24,
+      "status": "PASS"
+    },
+    {
+      "sr": 44100,
+      "channels": 1,
+      "bits": 32,
+      "status": "PASS"
+    },
+    {
+      "sr": 44100,
+      "channels": 1,
+      "format": "FLOAT32",
+      "status": "PASS"
+    },
+    {
+      "sr": 44100,
+      "channels": 2,
+      "bits": 8,
+      "status": "PASS"
+    },
+    {
+      "sr": 44100,
+      "channels": 2,
+      "bits": 16,
+      "status": "PASS"
+    },
+    {
+      "sr": 44100,
+      "channels": 2,
+      "bits": 24,
+      "status": "PASS"
+    },
+    {
+      "sr": 44100,
+      "channels": 2,
+      "bits": 32,
+      "status": "PASS"
+    },
+    {
+      "sr": 44100,
+      "channels": 2,
+      "format": "FLOAT32",
+      "status": "PASS"
+    },
+    {
+      "sr": 48000,
+      "channels": 1,
+      "bits": 8,
+      "status": "PASS"
+    },
+    {
+      "sr": 48000,
+      "channels": 1,
+      "bits": 16,
+      "status": "PASS"
+    },
+    {
+      "sr": 48000,
+      "channels": 1,
+      "bits": 24,
+      "status": "PASS"
+    },
+    {
+      "sr": 48000,
+      "channels": 1,
+      "bits": 32,
+      "status": "PASS"
+    },
+    {
+      "sr": 48000,
+      "channels": 1,
+      "format": "FLOAT32",
+      "status": "PASS"
+    },
+    {
+      "sr": 48000,
+      "channels": 2,
+      "bits": 8,
+      "status": "PASS"
+    },
+    {
+      "sr": 48000,
+      "channels": 2,
+      "bits": 16,
+      "status": "PASS"
+    },
+    {
+      "sr": 48000,
+      "channels": 2,
+      "bits": 24,
+      "status": "PASS"
+    },
+    {
+      "sr": 48000,
+      "channels": 2,
+      "bits": 32,
+      "status": "PASS"
+    },
+    {
+      "sr": 48000,
+      "channels": 2,
+      "format": "FLOAT32",
+      "status": "PASS"
+    }
+  ],
+  "nonfinite_rejected": 3,
+  "empty_short_silence_no_fabricated_events": true,
+  "truncated_chunk_rejected": true,
+  "exit_code": 0
+}

@@ -1,0 +1,10 @@
+WARNING: The directory '/home/agent/.cache/pip' or its parent directory is not owned or is not writable by the current user. The cache has been disabled. Check the permissions and owner of that directory. If executing pip with sudo, you should use sudo's -H flag.
+Processing /workspace/groovemap-v3-audit/groovemap_next
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Building wheels for collected packages: groovemap-next
+  Building wheel for groovemap-next (pyproject.toml): started
+  Building wheel for groovemap-next (pyproject.toml): finished with status 'done'
+  Created wheel for groovemap-next: filename=groovemap_next-0.2.0-py3-none-any.whl size=29141 sha256=bb745c3ac13506a0704692cf33b4d8f2e5054e7d418ce0ad3da5342d90831e8d
+  Stored in directory: /tmp/pip-ephem-wheel-cache-gau3dch_/wheels/9a/64/03/085813437aad8b2b9566ee66e2a85d94baaf8d4925c6de1b9a
+Successfully built groovemap-next
