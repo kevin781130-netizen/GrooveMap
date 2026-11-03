@@ -1,0 +1,84 @@
+{
+  "schema": "groovemap-offline-rc-acceptance-v2",
+  "repository": "kevin781130-netizen/GrooveMap",
+  "branch": "fix/groovemap-v3-preflight-output-safety-20261102",
+  "pull_request": 4,
+  "tested_source_sha": "5c2004cce74e2622394083c8326896893ffd6ca9",
+  "prior_evidence_commit_referenced": "dcaad6faa24a40cdbebe0b2dc718c98e4969946e",
+  "verification_date": "2026-11-03",
+  "purpose": "Close the gap flagged against the 2026-11-02 evidence: that wheel CLI smoke reused host NumPy/Mido via PYTHONPATH instead of a genuinely independent install, and that real Beat This! checkpoint inference had no attempted/recorded evidence.",
+  "independent_wheel_install": {
+    "status": "PASS",
+    "constraints_enforced": [
+      "no editable install (-e)",
+      "no PYTHONPATH",
+      "no PYTHONHOME",
+      "no --system-site-packages (pyvenv.cfg include-system-site-packages=false)",
+      "CLI invoked from a directory outside the repository checkout",
+      "no reuse of checkout or host site-packages"
+    ],
+    "wheel_file": "groovemap_next-0.2.0-py3-none-any.whl",
+    "wheel_sha256": "7924dee7c4001e01c2d27fd45fe0f98c288af0c0115e2abf599e56da65bb211b",
+    "wheel_python_modules_byte_identical_to_source": 13,
+    "resolved_base_deps": {"numpy": "2.5.4", "mido": "1.3.3"},
+    "pip_check": "No broken requirements found.",
+    "import_resolves_to_site_packages_not_checkout": true,
+    "cli_help_exit_codes": {"groovemap-next --help": 0, "groovemap-next humanize-midi --help": 0}
+  },
+  "offline_gate": {
+    "status": "PASS",
+    "command": "python scripts/release_gate.py --offline --report-json offline-release-report.json",
+    "exit_code": 0,
+    "pytest_collected": 58,
+    "pytest_passed": 58,
+    "pytest_failed": 0,
+    "pytest_skipped": 0,
+    "pytest_xfailed": 0,
+    "compileall": "PASS"
+  },
+  "installed_wheel_core_workflow": {
+    "status": "PASS_STRUCTURAL_ONLY",
+    "note": "Explicit stub beat tracker (source field literally says EXPLICIT-STUB-not-real-beat-this). This exercises WAV decode, DSP transcription, MIDI/JSON export and humanize/groove export on the INSTALLED wheel from outside the checkout. It is NOT real-model evidence and is not represented as such.",
+    "source_wav_sha256_unchanged": true,
+    "outputs_all_present": true,
+    "timing_schema": "groovemap-next-timing-v2"
+  },
+  "real_beat_this_inference": {
+    "status": "BLOCKED",
+    "ai_extra_install": {
+      "status": "PASS",
+      "installed_versions": {
+        "beat-this": "1.1.0",
+        "torch": "2.15.0",
+        "torchaudio": "2.11.1",
+        "rotary-embedding-torch": "0.9.1"
+      },
+      "pip_check": "No broken requirements found.",
+      "note": "Dependency resolution and installation of the ai extra, in the same strict independent venv as above, is NOT the blocker."
+    },
+    "model_identity": {
+      "project": "CPJKU/beat_this",
+      "pip_package": "beat-this==1.1.0",
+      "checkpoint_name": "final0",
+      "license_upstream_code": "MIT",
+      "license_upstream_weights": "MIT (per upstream documentation, and per this repo's THIRD_PARTY_NOTICES.md)",
+      "official_checkpoint_host": "https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt",
+      "host_source_basis": "Read directly from beat_this 1.1.0's own inference.py (CHECKPOINT_URL constant); this is the paper authors' own hosting, not a third-party mirror."
+    },
+    "blocker": {
+      "kind": "sandbox egress network policy denial",
+      "evidence": "curl CONNECT tunnel to cloud.cp.jku.at:443 returns HTTP 403; this session's proxy status endpoint logs {\"kind\":\"connect_rejected\",\"host\":\"cloud.cp.jku.at:443\"}. Reproduced identically via direct curl and via groovemap_next.beat_tracker.BeatThisTracker(checkpoint=\"final0\") -> ValueError(\"Could not load the checkpoint given the provided name\", \"final0\").",
+      "action_taken": "Reported once per the proxy's own guidance (\"do not retry or route around it\"). No retries, no alternate/unofficial mirror attempted, no synthetic substitute presented as real inference."
+    },
+    "separately_missing": "No real, licensed, isolated drum-stem WAV exists anywhere in this sandbox (checked /root/.claude/uploads and filesystem). This is independent of the network blocker above."
+  },
+  "not_performed": [
+    "Genuine Beat This! checkpoint inference on a real drum stem (blocked as above)",
+    "Cubase import / full-song drift / listening acceptance (no Windows/Cubase access in this sandbox)",
+    "Windows OS smoke, V1 GUI integration (out of this task's scope)",
+    "Optional licensed 20-class ONNX inference (explicitly out of scope, non-blocking)"
+  ],
+  "github_actions_used": false,
+  "main_changed": false,
+  "merged": false
+}

@@ -1,0 +1,11 @@
+{
+  "mode": "STRUCTURAL ONLY -- explicit stub beat tracker, NOT real-model evidence",
+  "source_wav_sha256_before": "169c9b541c86123e16e26ecc26e09442817594b92be536f7d0fe86b5f09774f1",
+  "source_wav_sha256_after": "169c9b541c86123e16e26ecc26e09442817594b92be536f7d0fe86b5f09774f1",
+  "source_unmodified": true,
+  "outputs_exist": true,
+  "timing_schema": "groovemap-next-timing-v2",
+  "beat_source": "EXPLICIT-STUB-not-real-beat-this",
+  "drum_event_count": 16,
+  "tempo_point_count": 7
+}
