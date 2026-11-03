@@ -1,0 +1,39 @@
+{
+  "schema": "groovemap-offline-rc-acceptance-v3",
+  "purpose": "Independent Claude re-verification of the Codex audit (commit 7623f89) before advancing to READY_FOR_REAL_MACHINE_TEST.",
+  "tested_source_sha": "7623f897906f4f18e121ca8a7413ce1ac01f6368",
+  "audit_commit_reviewed": "7623f897906f4f18e121ca8a7413ce1ac01f6368",
+  "checks": {
+    "offline_tests": {"collected": 71, "passed": 71, "failed": 0, "skipped": 0, "xfailed": 0, "exit_code": 0},
+    "release_gate_offline": {"exit_code": 0, "ok": true},
+    "fresh_wheel_build": {
+      "sha256": "1c02ed8a25024c023595d38b7ed1d6e0dc014c440b1e031b31bb4e3fca280c1b",
+      "python_modules_byte_identical_to_source": 13
+    },
+    "independent_clean_install": {
+      "no_editable": true, "no_pythonpath": true, "no_pythonhome": true,
+      "system_site_packages": false, "pip_check": "No broken requirements found.",
+      "cli_run_outside_checkout": true
+    },
+    "installed_core_workflow_structural": {
+      "beat_source": "EXPLICIT-STUB-not-real-beat-this",
+      "source_wav_sha256_unchanged": true,
+      "outputs_exist": true
+    },
+    "chinese_space_path": {"source_unmodified": true, "outputs_exist": true},
+    "code_review_of_new_fixes": {
+      "beat_tracker_shared_decoder": "verified in diff, matches audit claim",
+      "pipeline_publication_lock_and_recovery": "verified in diff, matches audit claim",
+      "tempo_boundary_isclose_snap": "verified in diff, 1e-12 relative tolerance, does not weaken validation",
+      "release_gate_ordered_tempo_and_humanized_checks": "verified in diff, matches audit claim",
+      "no_new_p0_p1_found": true
+    },
+    "real_beat_this_inference": {
+      "status": "BLOCKED_SAME_AS_BEFORE",
+      "network": "cloud.cp.jku.at:443 -> 403 connect_rejected, reconfirmed this session",
+      "material": "no real licensed drum WAV present in this sandbox (checked /root/.claude/uploads)",
+      "note": "--checkpoint now accepts an absolute local trusted file path (groovemap_next.beat_tracker.BeatThisTracker -> Audio2Beats -> upstream load_checkpoint tries torch.load on a local path first), so once a trusted local checkpoint + real WAV exist on a machine with no sandbox network restriction, no code change is required to run real inference."
+    }
+  },
+  "verdict_contribution": "No additional P0/P1 found. Confirms the Codex audit's findings are accurate and reproducible. Both real-model blockers remain environment/resource-level, not code defects."
+}

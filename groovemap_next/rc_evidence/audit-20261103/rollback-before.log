@@ -1,0 +1,55 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______________ test_rollback_failure_keeps_recoverable_backups ________________
+
+src = PosixPath('/tmp/pytest-of-agent/pytest-8/test_rollback_failure_keeps_re0/.song.release-_rvrztvm/song_drums.mid')
+dst = PosixPath('/tmp/pytest-of-agent/pytest-8/test_rollback_failure_keeps_re0/song_drums.mid')
+
+    def fail_publication_and_recovery(src,dst):
+        if str(dst).endswith('_drums.mid') or 'previous_0' in str(src):
+>           raise OSError('persistent storage fault')
+E           OSError: persistent storage fault
+
+tests/test_release_end_to_end.py:218: OSError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-8/test_rollback_failure_keeps_re0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f69ea191370>
+stub_ai = [DrumEvent(time_sec=0.015, note=36, velocity=90, label='kick'), DrumEvent(time_sec=0.515, note=38, velocity=105, label...nt(time_sec=1.515, note=38, velocity=115, label='snare'), DrumEvent(time_sec=2.03, note=36, velocity=95, label='kick')]
+
+    def test_rollback_failure_keeps_recoverable_backups(tmp_path, monkeypatch, stub_ai):
+        prefix=tmp_path/'song'
+        tempo=tmp_path/'song_tempo.mid';tempo.write_bytes(b'prior-tempo')
+        drums=tmp_path/'song_drums.mid';drums.write_bytes(b'prior-drums')
+        replace=pipeline.os.replace
+        def fail_publication_and_recovery(src,dst):
+            if str(dst).endswith('_drums.mid') or 'previous_0' in str(src):
+                raise OSError('persistent storage fault')
+            return replace(src,dst)
+        monkeypatch.setattr(pipeline.os,'replace',fail_publication_and_recovery)
+        with pytest.raises(RuntimeError, match='recovery required'):
+>           pipeline.run_suno_drum_pipeline(tmp_path/'input.wav',prefix)
+
+tests/test_release_end_to_end.py:222: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+groovemap_next/pipeline.py:326: in run_suno_drum_pipeline
+    _publish_staged_outputs(publish, stale, backup_dir=staging / "backup")
+groovemap_next/pipeline.py:85: in _publish_staged_outputs
+    _publish_unlocked(staged, stale, backup_dir=backup_dir)
+groovemap_next/pipeline.py:125: in _publish_unlocked
+    os.replace(previous, destination)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+src = PosixPath('/tmp/pytest-of-agent/pytest-8/test_rollback_failure_keeps_re0/.song.release-_rvrztvm/backup/previous_0')
+dst = PosixPath('/tmp/pytest-of-agent/pytest-8/test_rollback_failure_keeps_re0/song_tempo.mid')
+
+    def fail_publication_and_recovery(src,dst):
+        if str(dst).endswith('_drums.mid') or 'previous_0' in str(src):
+>           raise OSError('persistent storage fault')
+E           OSError: persistent storage fault
+
+tests/test_release_end_to_end.py:218: OSError
+=========================== short test summary info ============================
+FAILED tests/test_release_end_to_end.py::test_rollback_failure_keeps_recoverable_backups
+1 failed in 0.18s

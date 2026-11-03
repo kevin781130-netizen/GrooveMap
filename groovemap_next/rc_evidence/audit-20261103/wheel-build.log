@@ -1,0 +1,116 @@
+* Creating isolated environment: venv+pip...
+* Installing packages in isolated environment:
+  - setuptools>=69
+  - wheel
+* Getting build dependencies for wheel...
+running egg_info
+creating groovemap_next.egg-info
+writing groovemap_next.egg-info/PKG-INFO
+writing dependency_links to groovemap_next.egg-info/dependency_links.txt
+writing entry points to groovemap_next.egg-info/entry_points.txt
+writing requirements to groovemap_next.egg-info/requires.txt
+writing top-level names to groovemap_next.egg-info/top_level.txt
+writing manifest file 'groovemap_next.egg-info/SOURCES.txt'
+reading manifest file 'groovemap_next.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'groovemap_next.egg-info/SOURCES.txt'
+WARNING `project.license` as a TOML table is deprecated
+!!
+
+        ********************************************************************************
+        Please use a simple string containing a SPDX expression for `project.license`. You can also use `project.license-files`. (Both options available on setuptools>=77.0.0).
+
+        By 2027-Feb-18, you need to update your project and remove deprecated calls
+        or your builds will no longer be supported.
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+* Installed build dependency versions:
+  - setuptools==84.2.1
+  - wheel==0.48.0
+* Building wheel...
+running bdist_wheel
+running build
+running build_py
+creating build/lib/groovemap_next
+copying groovemap_next/midi_humanize.py -> build/lib/groovemap_next
+copying groovemap_next/tempo_map.py -> build/lib/groovemap_next
+copying groovemap_next/remap.py -> build/lib/groovemap_next
+copying groovemap_next/onnx_drum.py -> build/lib/groovemap_next
+copying groovemap_next/drum_taxonomy.py -> build/lib/groovemap_next
+copying groovemap_next/groove_humanizer.py -> build/lib/groovemap_next
+copying groovemap_next/cli.py -> build/lib/groovemap_next
+copying groovemap_next/pipeline.py -> build/lib/groovemap_next
+copying groovemap_next/beat_tracker.py -> build/lib/groovemap_next
+copying groovemap_next/models.py -> build/lib/groovemap_next
+copying groovemap_next/midi_export.py -> build/lib/groovemap_next
+copying groovemap_next/drum_transcriber.py -> build/lib/groovemap_next
+copying groovemap_next/__init__.py -> build/lib/groovemap_next
+running egg_info
+writing groovemap_next.egg-info/PKG-INFO
+writing dependency_links to groovemap_next.egg-info/dependency_links.txt
+writing entry points to groovemap_next.egg-info/entry_points.txt
+writing requirements to groovemap_next.egg-info/requires.txt
+writing top-level names to groovemap_next.egg-info/top_level.txt
+reading manifest file 'groovemap_next.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+writing manifest file 'groovemap_next.egg-info/SOURCES.txt'
+installing to build/bdist.linux-x86_64/wheel
+running install
+running install_lib
+creating build/bdist.linux-x86_64/wheel
+creating build/bdist.linux-x86_64/wheel/groovemap_next
+copying build/lib/groovemap_next/midi_humanize.py -> build/bdist.linux-x86_64/wheel/./groovemap_next
+copying build/lib/groovemap_next/tempo_map.py -> build/bdist.linux-x86_64/wheel/./groovemap_next
+copying build/lib/groovemap_next/remap.py -> build/bdist.linux-x86_64/wheel/./groovemap_next
+copying build/lib/groovemap_next/onnx_drum.py -> build/bdist.linux-x86_64/wheel/./groovemap_next
+copying build/lib/groovemap_next/drum_taxonomy.py -> build/bdist.linux-x86_64/wheel/./groovemap_next
+copying build/lib/groovemap_next/groove_humanizer.py -> build/bdist.linux-x86_64/wheel/./groovemap_next
+copying build/lib/groovemap_next/cli.py -> build/bdist.linux-x86_64/wheel/./groovemap_next
+copying build/lib/groovemap_next/pipeline.py -> build/bdist.linux-x86_64/wheel/./groovemap_next
+copying build/lib/groovemap_next/beat_tracker.py -> build/bdist.linux-x86_64/wheel/./groovemap_next
+copying build/lib/groovemap_next/models.py -> build/bdist.linux-x86_64/wheel/./groovemap_next
+copying build/lib/groovemap_next/midi_export.py -> build/bdist.linux-x86_64/wheel/./groovemap_next
+copying build/lib/groovemap_next/drum_transcriber.py -> build/bdist.linux-x86_64/wheel/./groovemap_next
+copying build/lib/groovemap_next/__init__.py -> build/bdist.linux-x86_64/wheel/./groovemap_next
+running install_egg_info
+Copying groovemap_next.egg-info to build/bdist.linux-x86_64/wheel/./groovemap_next-0.2.0-py3.12.egg-info
+running install_scripts
+creating build/bdist.linux-x86_64/wheel/groovemap_next-0.2.0.dist-info/WHEEL
+creating '/workspace/gm-artifacts/dist/.tmp-wdjedfrh/groovemap_next-0.2.0-py3-none-any.whl' and adding 'build/bdist.linux-x86_64/wheel' to it
+adding 'groovemap_next/__init__.py'
+adding 'groovemap_next/beat_tracker.py'
+adding 'groovemap_next/cli.py'
+adding 'groovemap_next/drum_taxonomy.py'
+adding 'groovemap_next/drum_transcriber.py'
+adding 'groovemap_next/groove_humanizer.py'
+adding 'groovemap_next/midi_export.py'
+adding 'groovemap_next/midi_humanize.py'
+adding 'groovemap_next/models.py'
+adding 'groovemap_next/onnx_drum.py'
+adding 'groovemap_next/pipeline.py'
+adding 'groovemap_next/remap.py'
+adding 'groovemap_next/tempo_map.py'
+adding 'groovemap_next-0.2.0.dist-info/licenses/LICENSE'
+adding 'groovemap_next-0.2.0.dist-info/METADATA'
+adding 'groovemap_next-0.2.0.dist-info/WHEEL'
+adding 'groovemap_next-0.2.0.dist-info/entry_points.txt'
+adding 'groovemap_next-0.2.0.dist-info/top_level.txt'
+adding 'groovemap_next-0.2.0.dist-info/RECORD'
+removing build/bdist.linux-x86_64/wheel
+WARNING `project.license` as a TOML table is deprecated
+!!
+
+        ********************************************************************************
+        Please use a simple string containing a SPDX expression for `project.license`. You can also use `project.license-files`. (Both options available on setuptools>=77.0.0).
+
+        By 2027-Feb-18, you need to update your project and remove deprecated calls
+        or your builds will no longer be supported.
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+Successfully built groovemap_next-0.2.0-py3-none-any.whl

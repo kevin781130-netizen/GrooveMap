@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 from pathlib import Path
+from contextlib import contextmanager
+from tempfile import mkdtemp
 
 from .beat_tracker import BeatThisTracker
 from .drum_transcriber import transcribe_drum_stem
@@ -15,6 +19,25 @@ from .midi_export import write_drum_midi, write_tempo_midi
 from .models import PipelineOutputs
 from .remap import load_mapping, remap_events
 from .tempo_map import build_tempo_map, choose_tick_shift
+
+
+class PublicationRecoveryRequired(RuntimeError):
+    """Storage failure prevented rollback; keep staging and lock for recovery."""
+
+
+@contextmanager
+def _output_staging(prefix: Path):
+    staging = Path(mkdtemp(prefix=f".{prefix.name}.release-", dir=prefix.parent))
+    try:
+        yield staging
+    except PublicationRecoveryRequired:
+        # Do not let temporary-directory cleanup destroy the last good files.
+        raise
+    except BaseException:
+        shutil.rmtree(staging)
+        raise
+    else:
+        shutil.rmtree(staging)
 
 
 def _transcribe(
@@ -63,6 +86,88 @@ def _clear_optional_outputs(prefix: Path) -> tuple[Path, Path]:
     return humanized_path, groove_path
 
 
+
+def _publish_staged_outputs(
+    staged: dict[Path, Path],
+    stale: tuple[Path, ...],
+    *,
+    backup_dir: Path,
+) -> None:
+    # mkdir is atomic across processes and portable to Windows. Never remove an
+    # existing lock: its owner may still be publishing or recovering a failure.
+    first = next(iter(staged))
+    lock = first.with_name("." + first.name + ".publication-lock")
+    try:
+        lock.mkdir()
+    except FileExistsError as exc:
+        raise FileExistsError(f"output publication is already locked: {lock}") from exc
+    retain_lock = False
+    try:
+        _publish_unlocked(staged, stale, backup_dir=backup_dir)
+    except PublicationRecoveryRequired:
+        retain_lock = True
+        raise
+    finally:
+        if not retain_lock:
+            lock.rmdir()
+
+
+def _publish_unlocked(
+    staged: dict[Path, Path],
+    stale: tuple[Path, ...],
+    *,
+    backup_dir: Path,
+) -> None:
+    """Publish a completed run and restore prior files on a publish error.
+
+    All candidate MIDI/JSON files are written and validated before publication.
+    Backups are on the same filesystem as the destination so rollback can use
+    os.replace. A hard power loss during publication still needs filesystem
+    recovery; this is not a multi-file atomic filesystem transaction.
+    """
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backups: dict[Path, Path] = {}
+    destinations = list(staged) + list(stale)
+    for index, destination in enumerate(destinations):
+        if destination.exists():
+            backup = backup_dir / f"previous_{index}"
+            shutil.copy2(destination, backup)
+            backups[destination] = backup
+
+    # Save the complete recovery plan before the first destination changes.
+    (backup_dir / "recovery.json").write_text(json.dumps({
+        str(destination.resolve()): str(backups[destination].resolve())
+        if destination in backups else None
+        for destination in destinations
+    }, indent=2), encoding="utf-8")
+    changed: list[Path] = []
+    try:
+        for destination, prepared in staged.items():
+            os.replace(prepared, destination)
+            changed.append(destination)
+        for destination in stale:
+            if destination.exists():
+                destination.unlink()
+                changed.append(destination)
+    except BaseException as publication_error:
+        rollback_errors = []
+        for destination in reversed(changed):
+            try:
+                previous = backups.get(destination)
+                if previous is not None:
+                    os.replace(previous, destination)
+                else:
+                    destination.unlink(missing_ok=True)
+            except BaseException as exc:
+                rollback_errors.append(f"{destination}: {exc}")
+        if rollback_errors:
+            raise PublicationRecoveryRequired(
+                f"output recovery required; retained {backup_dir}; "
+                + "; ".join(rollback_errors)
+            ) from publication_error
+        raise
+
+
 def run_suno_drum_pipeline(
     drums_wav: str | Path,
     output_prefix: str | Path,
@@ -86,6 +191,13 @@ def run_suno_drum_pipeline(
     prefix = Path(output_prefix)
     prefix.parent.mkdir(parents=True, exist_ok=True)
 
+    destinations = [prefix.with_name(prefix.name + suffix) for suffix in (
+        "_tempo.mid", "_drums.mid", "_timing.json",
+        "_drums_humanized.mid", "_groove.json",
+    )]
+    if any(path.resolve() == source.resolve() for path in destinations):
+        raise ValueError("output paths must not overwrite source audio")
+
     # Validate before doing expensive inference so metadata and rendering always
     # describe the exact same effective settings.
     timing_strength = _validate_strength(timing_strength, "timing_strength")
@@ -96,9 +208,8 @@ def run_suno_drum_pipeline(
     if pattern_bars < 1:
         raise ValueError("pattern_bars must be >= 1")
 
-    # A repeated run with the same prefix must never leave optional artifacts
-    # from a previous humanized run behind.
-    humanized_candidate, groove_candidate = _clear_optional_outputs(prefix)
+    # Previous outputs must remain intact until all new outputs are ready.
+    humanized_candidate, groove_candidate = _optional_output_paths(prefix)
 
     # Stage 1: extract musical events in absolute seconds.
     detected_events, transcription_source = _transcribe(
@@ -123,113 +234,135 @@ def run_suno_drum_pipeline(
         repair_missing_beats=True,
     )
 
-    # Stage 3: optionally quantize the skeleton and reconstruct source feel.
-    groove_path: Path | None = None
-    humanized_events = None
-    if humanize_source and detected_events:
-        template = extract_groove_template(
-            detected_events,
-            tempo_map,
-            subdivisions_per_beat=4,
-            pattern_bars=pattern_bars,
+    with _output_staging(prefix) as staging:
+        staged_prefix = staging / prefix.name
+        staged_tempo_path = staged_prefix.with_name(staged_prefix.name + "_tempo.mid")
+        staged_drums_path = staged_prefix.with_name(staged_prefix.name + "_drums.mid")
+        staged_timing_path = staged_prefix.with_name(staged_prefix.name + "_timing.json")
+        staged_humanized_path, staged_groove_path = _optional_output_paths(staged_prefix)
+        # Stage 3: optionally quantize the skeleton and reconstruct source feel.
+        groove_path: Path | None = None
+        humanized_events = None
+        if humanize_source and detected_events:
+            template = extract_groove_template(
+                detected_events,
+                tempo_map,
+                subdivisions_per_beat=4,
+                pattern_bars=pattern_bars,
+            )
+            humanized_events = apply_groove_template(
+                detected_events,
+                tempo_map,
+                template,
+                timing_strength=timing_strength,
+                velocity_strength=velocity_strength,
+            )
+            groove_path = groove_candidate
+            save_groove_template(template, staged_groove_path)
+
+        # Stage 4: vendor-specific key mapping happens last; labels remain semantic.
+        mapping = load_mapping(mapping_json) if mapping_json is not None else None
+        drum_events = (
+            remap_events(detected_events, mapping)
+            if mapping is not None
+            else detected_events
         )
-        humanized_events = apply_groove_template(
-            detected_events,
-            tempo_map,
-            template,
-            timing_strength=timing_strength,
-            velocity_strength=velocity_strength,
+        mapped_humanized = (
+            remap_events(humanized_events, mapping)
+            if mapping is not None and humanized_events is not None
+            else humanized_events
         )
-        groove_path = groove_candidate
-        save_groove_template(template, groove_path)
 
-    # Stage 4: vendor-specific key mapping happens last; labels remain semantic.
-    mapping = load_mapping(mapping_json) if mapping_json is not None else None
-    drum_events = (
-        remap_events(detected_events, mapping)
-        if mapping is not None
-        else detected_events
-    )
-    mapped_humanized = (
-        remap_events(humanized_events, mapping)
-        if mapping is not None and humanized_events is not None
-        else humanized_events
-    )
+        all_events = list(drum_events)
+        if mapped_humanized is not None:
+            all_events.extend(mapped_humanized)
+        earliest = min([0.0] + [event.time_sec for event in all_events])
+        tick_shift = choose_tick_shift(tempo_map, earliest)
 
-    all_events = list(drum_events)
-    if mapped_humanized is not None:
-        all_events.extend(mapped_humanized)
-    earliest = min([0.0] + [event.time_sec for event in all_events])
-    tick_shift = choose_tick_shift(tempo_map, earliest)
+        tempo_path = prefix.with_name(prefix.name + "_tempo.mid")
+        drums_path = prefix.with_name(prefix.name + "_drums.mid")
+        timing_path = prefix.with_name(prefix.name + "_timing.json")
+        humanized_path: Path | None = None
 
-    tempo_path = prefix.with_name(prefix.name + "_tempo.mid")
-    drums_path = prefix.with_name(prefix.name + "_drums.mid")
-    timing_path = prefix.with_name(prefix.name + "_timing.json")
-    humanized_path: Path | None = None
-
-    write_tempo_midi(tempo_map, tempo_path, tick_shift=tick_shift)
-    write_drum_midi(
-        tempo_map,
-        drum_events,
-        drums_path,
-        tick_shift=tick_shift,
-    )
-
-    if mapped_humanized is not None:
-        humanized_path = humanized_candidate
+        write_tempo_midi(tempo_map, staged_tempo_path, tick_shift=tick_shift)
         write_drum_midi(
             tempo_map,
-            mapped_humanized,
-            humanized_path,
+            drum_events,
+            staged_drums_path,
             tick_shift=tick_shift,
         )
 
-    def encode_events(events):
-        if events is None:
-            return None
-        return [
-            {
-                "time_sec": e.time_sec,
-                "note": e.note,
-                "velocity": e.velocity,
-                "label": e.label,
-            }
-            for e in events
-        ]
+        if mapped_humanized is not None:
+            humanized_path = humanized_candidate
+            write_drum_midi(
+                tempo_map,
+                mapped_humanized,
+                staged_humanized_path,
+                tick_shift=tick_shift,
+            )
 
-    payload = {
-        "schema": "groovemap-next-timing-v2",
-        "source_audio": str(source),
-        "transcription_source": transcription_source,
-        "beat_source": analysis.source,
-        "ppq": tempo_map.ppq,
-        "beats_per_bar": tempo_map.beats_per_bar,
-        "origin_sec": tempo_map.origin_sec,
-        "origin_beat_index": tempo_map.origin_beat_index,
-        "tick_shift": tick_shift,
-        "beats_sec": list(tempo_map.beats_sec),
-        "downbeats_sec": list(tempo_map.downbeats_sec),
-        "tempo_points": [
-            {
-                "beat_index": p.beat_index,
-                "time_sec": p.time_sec,
-                "bpm": p.bpm,
-            }
-            for p in tempo_map.tempo_points
-        ],
-        "drum_events": encode_events(drum_events),
-        "humanized_events": encode_events(mapped_humanized),
-        "humanize": {
-            "enabled": humanized_events is not None,
-            "timing_strength": timing_strength,
-            "velocity_strength": velocity_strength,
-            "pattern_bars": int(pattern_bars),
-        },
-    }
-    timing_path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+        def encode_events(events):
+            if events is None:
+                return None
+            return [
+                {
+                    "time_sec": e.time_sec,
+                    "note": e.note,
+                    "velocity": e.velocity,
+                    "label": e.label,
+                }
+                for e in events
+            ]
+
+        payload = {
+            "schema": "groovemap-next-timing-v2",
+            "source_audio": str(source),
+            "transcription_source": transcription_source,
+            "beat_source": analysis.source,
+            "ppq": tempo_map.ppq,
+            "beats_per_bar": tempo_map.beats_per_bar,
+            "origin_sec": tempo_map.origin_sec,
+            "origin_beat_index": tempo_map.origin_beat_index,
+            "tick_shift": tick_shift,
+            "beats_sec": list(tempo_map.beats_sec),
+            "downbeats_sec": list(tempo_map.downbeats_sec),
+            "tempo_points": [
+                {
+                    "beat_index": p.beat_index,
+                    "time_sec": p.time_sec,
+                    "bpm": p.bpm,
+                }
+                for p in tempo_map.tempo_points
+            ],
+            "drum_events": encode_events(drum_events),
+            "humanized_events": encode_events(mapped_humanized),
+            "humanize": {
+                "enabled": humanized_events is not None,
+                "timing_strength": timing_strength,
+                "velocity_strength": velocity_strength,
+                "pattern_bars": int(pattern_bars),
+            },
+        }
+        staged_timing_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+
+        publish = {
+            tempo_path: staged_tempo_path,
+            drums_path: staged_drums_path,
+            timing_path: staged_timing_path,
+        }
+        if humanized_path is not None:
+            publish[humanized_candidate] = staged_humanized_path
+        if groove_path is not None:
+            publish[groove_candidate] = staged_groove_path
+        stale = tuple(
+            item for item in (humanized_candidate, groove_candidate)
+            if item not in publish
+        )
+        _publish_staged_outputs(publish, stale, backup_dir=staging / "backup")
 
     return PipelineOutputs(
         tempo_midi=tempo_path,

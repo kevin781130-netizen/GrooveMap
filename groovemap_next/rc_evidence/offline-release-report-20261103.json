@@ -1,0 +1,21 @@
+{
+  "generated_utc": "2026-11-03T04:26:57.451990+00:00",
+  "mode": "offline",
+  "checks": [
+    {
+      "command": "python -m compileall -q groovemap_next tests scripts",
+      "ok": true,
+      "returncode": 0,
+      "stdout_tail": "",
+      "stderr_tail": ""
+    },
+    {
+      "command": "python -m pytest -q tests",
+      "ok": true,
+      "returncode": 0,
+      "stdout_tail": "..........................................................               [100%]\n58 passed in 2.31s\n",
+      "stderr_tail": ""
+    }
+  ],
+  "ok": true
+}

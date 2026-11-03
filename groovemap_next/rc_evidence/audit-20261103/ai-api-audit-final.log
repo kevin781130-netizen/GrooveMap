@@ -1,0 +1,145 @@
+beat-this 1.1.0
+torch 2.15.0
+torchaudio 2.11.1
+class File2Beats(Audio2Beats):
+    def __call__(self, audio_path):
+        signal, sr = load_audio(audio_path)
+        return super().__call__(signal, sr)
+
+    def signal2spect(self, signal, sr):
+        if signal.ndim == 2:
+            signal = signal.mean(1)
+        elif signal.ndim != 1:
+            raise ValueError(f"Expected 1D or 2D signal, got shape {signal.shape}")
+        if sr != 22050:
+            signal = soxr.resample(signal, in_rate=sr, out_rate=22050)
+        signal = torch.tensor(signal, dtype=torch.float32, device=self.device)
+        return self.spect(signal)
+
+class Audio2Beats(Audio2Frames):
+    """
+    Class for extracting beat and downbeat positions (in seconds) from an audio tensor.
+
+    Args:
+        checkpoint_path (str): Path to the model checkpoint file. It can be a local path, a URL, or a key from the CHECKPOINT_URL dictionary. Default is "final0", which will load the model trained on all data except GTZAN with seed 0.
+        device (str): Device to use for inference. Default is "cpu".
+        float16 (bool): Whether to use half precision floating point arithmetic. Default is False.
+        dbn (bool): Whether to use the madmom DBN for post-processing. Default is False.
+    """
+
+    def __init__(
+        self, checkpoint_path="final0", device="cpu", float16=False, dbn=False
+    ):
+        super().__init__(checkpoint_path, device, float16)
+        self.frames2beats = Postprocessor(type="dbn" if dbn else "minimal")
+
+    def __call__(self, signal, sr):
+        beat_logits, downbeat_logits = super().__call__(signal, sr)
+        return self.frames2beats(beat_logits, downbeat_logits)
+
+def load_checkpoint(checkpoint_path: str, device: str | torch.device = "cpu") -> dict:
+    """
+    Load a BeatThis checkpoint as a dictionary.
+
+    Args:
+        checkpoint_path (str, optional): The path to the checkpoint. Can be a local path, a URL, or a shortname.
+        device (torch.device or str): The device to load the model on.
+
+    Returns:
+        dict: The loaded checkpoint dictionary.
+    """
+    try:
+        # try interpreting as local file name
+        weights_only = {"weights_only": True} if torch.__version__ >= "2" else {}
+        return torch.load(checkpoint_path, map_location=device, **weights_only)
+    except FileNotFoundError:
+        try:
+            if not (
+                str(checkpoint_path).startswith("https://")
+                or str(checkpoint_path).startswith("http://")
+            ):
+                # interpret it as a name of one of our checkpoints
+                checkpoint_url = f"{CHECKPOINT_URL}/{checkpoint_path}.ckpt"
+                file_name = f"beat_this-{checkpoint_path}.ckpt"
+            else:
+                # try interpreting as a URL
+                checkpoint_url = checkpoint_path
+                file_name = None
+            return torch.hub.load_state_dict_from_url(
+                checkpoint_url,
+                file_name=file_name,
+                map_location=device,
+            )
+        except Exception:
+            raise ValueError(
+                "Could not load the checkpoint given the provided name",
+                checkpoint_path,
+            )
+
+def load_audio(path, dtype="float64"):
+    try:
+        waveform, samplerate = torchaudio.load(path, channels_first=False)
+        waveform = np.asanyarray(waveform.squeeze().numpy(), dtype=dtype)
+        return waveform, samplerate
+    except Exception:
+        # in case torchaudio fails, try soundfile
+        try:
+            import soundfile as sf
+
+            return sf.read(path, dtype=dtype)
+        except Exception:
+            # some files are not readable by soundfile, try madmom
+            try:
+                import madmom
+
+                return madmom.io.load_audio_file(str(path), dtype=dtype)
+            except Exception:
+                raise RuntimeError(f'Could not load audio from "{path}".')
+
+    def __call__(
+        self,
+        beat: torch.Tensor,
+        downbeat: torch.Tensor,
+        padding_mask: torch.Tensor | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Apply postprocessing to the input beat and downbeat tensors. Works with batched and unbatched inputs.
+        The output is a list of times in seconds, or a list of lists of times in seconds, if the input is batched.
+
+        Args:
+            beat (torch.Tensor): The input beat tensor.
+            downbeat (torch.Tensor): The input downbeat tensor.
+            padding_mask (torch.Tensor, optional): The padding mask tensor. Defaults to None.
+
+        Returns:
+            torch.Tensor: The postprocessed beat tensor.
+            torch.Tensor: The postprocessed downbeat tensor.
+        """
+        batched = False if beat.ndim == 1 else True
+        if padding_mask is None:
+            padding_mask = torch.ones_like(beat, dtype=torch.bool)
+
+        # if beat and downbeat are 1D tensors, add a batch dimension
+        if not batched:
+            beat = beat.unsqueeze(0)
+            downbeat = downbeat.unsqueeze(0)
+            padding_mask = padding_mask.unsqueeze(0)
+
+        if self.type == "minimal":
+            postp_beat, postp_downbeat = self.postp_minimal(
+                beat, downbeat, padding_mask
+            )
+        elif self.type == "dbn":
+            postp_beat, postp_downbeat = self.postp_dbn(beat, downbeat, padding_mask)
+        else:
+            raise ValueError("Invalid postprocessing type")
+
+        # remove the batch dimension if it was added
+        if not batched:
+            postp_beat = postp_beat[0]
+            postp_downbeat = postp_downbeat[0]
+
+        # update the model prediction dict
+        return postp_beat, postp_downbeat
+
+STATIC_API_AUDIT_ONLY: no checkpoint or real inference executed

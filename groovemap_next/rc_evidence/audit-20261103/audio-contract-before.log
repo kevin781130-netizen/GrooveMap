@@ -1,0 +1,77 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+________ test_adapter_supplies_validated_mono_samples_and_original_rate ________
+
+self = <groovemap_next.beat_tracker.BeatThisTracker object at 0x7f4916734620>
+checkpoint = '/trusted/local.ckpt', device = 'cpu', float16 = False
+
+    def __init__(self, *, checkpoint: str = "final0", device: str = "cpu", float16: bool = False) -> None:
+        try:
+>           from beat_this.inference import File2Beats
+E           ImportError: cannot import name 'File2Beats' from 'beat_this.inference' (unknown location)
+
+groovemap_next/beat_tracker.py:9: ImportError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-15/test_adapter_supplies_validate0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f49167374a0>
+
+    def test_adapter_supplies_validated_mono_samples_and_original_rate(tmp_path, monkeypatch):
+        path=tmp_path/'鼓 空白.wav'
+        stereo=np.array([[0,32767],[-32768,0],[0,0]],dtype='<i2')
+        with wave.open(str(path),'wb') as f:
+            f.setnchannels(2);f.setsampwidth(2);f.setframerate(48000);f.writeframes(stereo.tobytes())
+        seen={}
+        class ContractRunner:
+            def __init__(self,**kwargs): seen['kwargs']=kwargs
+            def __call__(self,signal,sr):
+                seen['signal']=signal;seen['sr']=sr
+                return np.array([.1,.6]),np.array([.1])
+        module=types.ModuleType('beat_this.inference')
+        module.Audio2Beats=ContractRunner
+        # File2Beats intentionally absent: this adapter must not depend on the
+        # optional torchcodec/soundfile/madmom file-decoding chain.
+        monkeypatch.setitem(sys.modules,'beat_this.inference',module)
+>       tracker=BeatThisTracker(checkpoint='/trusted/local.ckpt',device='cpu')
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_beat_tracker_audio_contract.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <groovemap_next.beat_tracker.BeatThisTracker object at 0x7f4916734620>
+checkpoint = '/trusted/local.ckpt', device = 'cpu', float16 = False
+
+    def __init__(self, *, checkpoint: str = "final0", device: str = "cpu", float16: bool = False) -> None:
+        try:
+            from beat_this.inference import File2Beats
+        except ImportError as exc:
+>           raise RuntimeError('Install AI support with: pip install -e ".[ai]"') from exc
+E           RuntimeError: Install AI support with: pip install -e ".[ai]"
+
+groovemap_next/beat_tracker.py:11: RuntimeError
+__________________ test_adapter_propagates_real_runner_errors __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-15/test_adapter_propagates_real_r0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f4916737c80>
+
+    def test_adapter_propagates_real_runner_errors(tmp_path,monkeypatch):
+        path=tmp_path/'a.wav'
+        with wave.open(str(path),'wb') as f:
+            f.setnchannels(1);f.setsampwidth(2);f.setframerate(16000);f.writeframes(b'\0\0'*16000)
+        class Failure:
+            def __init__(self,**kwargs):pass
+            def __call__(self,signal,sr):raise RuntimeError('model execution failed')
+        module=types.ModuleType('beat_this.inference');module.Audio2Beats=Failure
+        monkeypatch.setitem(sys.modules,'beat_this.inference',module)
+>       with pytest.raises(RuntimeError,match='model execution failed'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'model execution failed'
+E         Actual message: 'Install AI support with: pip install -e ".[ai]"'
+
+tests/test_beat_tracker_audio_contract.py:44: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_beat_tracker_audio_contract.py::test_adapter_supplies_validated_mono_samples_and_original_rate
+FAILED tests/test_beat_tracker_audio_contract.py::test_adapter_propagates_real_runner_errors
+2 failed in 0.16s

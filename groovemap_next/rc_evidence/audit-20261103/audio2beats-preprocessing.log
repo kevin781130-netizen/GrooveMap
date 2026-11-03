@@ -1,0 +1,4 @@
+{'input_sr': 16000, 'input_shape': (32000,), 'spect_shape': (101, 128), 'finite': True}
+{'input_sr': 44100, 'input_shape': (88200,), 'spect_shape': (101, 128), 'finite': True}
+{'input_sr': 48000, 'input_shape': (96000,), 'spect_shape': (101, 128), 'finite': True}
+PASS real upstream resampling/log-mel preprocessing; NOT MODEL INFERENCE

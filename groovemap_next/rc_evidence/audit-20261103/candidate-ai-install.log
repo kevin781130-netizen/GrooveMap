@@ -1,0 +1,8 @@
+WARNING: The directory '/home/agent/.cache/pip' or its parent directory is not owned or is not writable by the current user. The cache has been disabled. Check the permissions and owner of that directory. If executing pip with sudo, you should use sudo's -H flag.
+Processing ./gm-artifacts/candidate/groovemap_next-0.2.0-py3-none-any.whl (from groovemap-next==0.2.0)
+Installing collected packages: groovemap-next
+  Attempting uninstall: groovemap-next
+    Found existing installation: groovemap-next 0.2.0
+    Uninstalling groovemap-next-0.2.0:
+      Successfully uninstalled groovemap-next-0.2.0
+Successfully installed groovemap-next-0.2.0

@@ -1,0 +1,7 @@
+{
+  "exit_code": 73,
+  "retained_manifest": "/workspace/gm-artifacts/crash-final/.song.release-91ge81ki/backup/recovery.json",
+  "backups_retained": true,
+  "operator_recovery_restored_old_set": true,
+  "scope": "ISOLATED_FAULT_FIXTURE_NOT_MODEL_EVIDENCE"
+}

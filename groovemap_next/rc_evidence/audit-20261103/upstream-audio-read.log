@@ -1,0 +1,39 @@
+Traceback (most recent call last):
+  File "/workspace/gm-audit-venv/lib/python3.12/site-packages/torchaudio/_torchcodec.py", line 82, in load_with_torchcodec
+    from torchcodec.decoders import AudioDecoder
+ModuleNotFoundError: No module named 'torchcodec'
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/workspace/gm-audit-venv/lib/python3.12/site-packages/beat_this/preprocessing.py", line 8, in load_audio
+    waveform, samplerate = torchaudio.load(path, channels_first=False)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/gm-audit-venv/lib/python3.12/site-packages/torchaudio/__init__.py", line 86, in load
+    return load_with_torchcodec(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/gm-audit-venv/lib/python3.12/site-packages/torchaudio/_torchcodec.py", line 84, in load_with_torchcodec
+    raise ImportError(
+ImportError: TorchCodec is required for load_with_torchcodec. Please install torchcodec to use this function.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/gm-audit-venv/lib/python3.12/site-packages/beat_this/preprocessing.py", line 14, in load_audio
+    import soundfile as sf
+ModuleNotFoundError: No module named 'soundfile'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/gm-audit-venv/lib/python3.12/site-packages/beat_this/preprocessing.py", line 20, in load_audio
+    import madmom
+ModuleNotFoundError: No module named 'madmom'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<stdin>", line 4, in <module>
+  File "/workspace/gm-audit-venv/lib/python3.12/site-packages/beat_this/preprocessing.py", line 24, in load_audio
+    raise RuntimeError(f'Could not load audio from "{path}".')
+RuntimeError: Could not load audio from "/workspace/gm-artifacts/final-installed-run/合法性未主張 synthetic 鼓.wav".

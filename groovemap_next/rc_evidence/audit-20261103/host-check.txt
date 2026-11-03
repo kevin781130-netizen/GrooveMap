@@ -1,0 +1,7 @@
+Observed 2026-11-03 05:34:36 UTC; one checkpoint-host request only.
+Command: curl -I --max-time 20 https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt
+Exit code: 56
+Response: HTTP/1.1 403 Forbidden; server: envoy
+curl: (56) CONNECT tunnel failed, response 403
+No mirror or proxy bypass attempted; no checkpoint downloaded.
+This file transcribes the tool-observed response; it is not a second request.

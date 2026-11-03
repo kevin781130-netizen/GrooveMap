@@ -1,0 +1,131 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+_______________ test_incomplete_pcm_frame_is_rejected[1-16-\x00] _______________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-1/test_incomplete_pcm_frame_is_r0')
+channels = 1, bits = 16, raw = b'\x00'
+
+    @pytest.mark.parametrize('channels,bits,raw', [(1,16,b'\0'), (2,16,b'\0\0'), (1,24,b'\0\0')])
+    def test_incomplete_pcm_frame_is_rejected(tmp_path, channels, bits, raw):
+        align = channels * (bits // 8)
+        fmt = struct.pack('<HHIIHH',1,channels,48000,48000*align,align,bits)
+        body = b'WAVEfmt ' + struct.pack('<I',len(fmt)) + fmt
+        body += b'data' + struct.pack('<I',len(raw)) + raw + (b'\0' if len(raw)%2 else b'')
+        p = tmp_path/'broken.wav'
+        p.write_bytes(b'RIFF'+struct.pack('<I',len(body))+body)
+>       with pytest.raises(ValueError, match='incomplete WAV frame'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_audit_safety.py:17: Failed
+_____________ test_incomplete_pcm_frame_is_rejected[2-16-\x00\x00] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-1/test_incomplete_pcm_frame_is_r1')
+channels = 2, bits = 16, raw = b'\x00\x00'
+
+    @pytest.mark.parametrize('channels,bits,raw', [(1,16,b'\0'), (2,16,b'\0\0'), (1,24,b'\0\0')])
+    def test_incomplete_pcm_frame_is_rejected(tmp_path, channels, bits, raw):
+        align = channels * (bits // 8)
+        fmt = struct.pack('<HHIIHH',1,channels,48000,48000*align,align,bits)
+        body = b'WAVEfmt ' + struct.pack('<I',len(fmt)) + fmt
+        body += b'data' + struct.pack('<I',len(raw)) + raw + (b'\0' if len(raw)%2 else b'')
+        p = tmp_path/'broken.wav'
+        p.write_bytes(b'RIFF'+struct.pack('<I',len(body))+body)
+>       with pytest.raises(ValueError, match='incomplete WAV frame'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_audit_safety.py:17: Failed
+_____________ test_incomplete_pcm_frame_is_rejected[1-24-\x00\x00] _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-1/test_incomplete_pcm_frame_is_r2')
+channels = 1, bits = 24, raw = b'\x00\x00'
+
+    @pytest.mark.parametrize('channels,bits,raw', [(1,16,b'\0'), (2,16,b'\0\0'), (1,24,b'\0\0')])
+    def test_incomplete_pcm_frame_is_rejected(tmp_path, channels, bits, raw):
+        align = channels * (bits // 8)
+        fmt = struct.pack('<HHIIHH',1,channels,48000,48000*align,align,bits)
+        body = b'WAVEfmt ' + struct.pack('<I',len(fmt)) + fmt
+        body += b'data' + struct.pack('<I',len(raw)) + raw + (b'\0' if len(raw)%2 else b'')
+        p = tmp_path/'broken.wav'
+        p.write_bytes(b'RIFF'+struct.pack('<I',len(body))+body)
+>       with pytest.raises(ValueError, match='incomplete WAV frame'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_audit_safety.py:17: Failed
+_______ test_overlapping_publication_cannot_be_rolled_back_by_other_run ________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-1/test_overlapping_publication_c0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fabab7c2300>
+
+    def test_overlapping_publication_cannot_be_rolled_back_by_other_run(tmp_path, monkeypatch):
+        target = tmp_path/'曲 空白_tempo.mid'
+        target.write_bytes(b'old')
+        first = tmp_path/'first'; first.write_bytes(b'first')
+        second = tmp_path/'second'; second.write_bytes(b'second')
+        replace = pipeline.os.replace
+        attempted = False
+        def interleave(src,dst):
+            nonlocal attempted
+            if src == first:
+                attempted = True
+                with pytest.raises(FileExistsError, match='publication'):
+                    pipeline._publish_staged_outputs({target:second}, (), backup_dir=tmp_path/'b2')
+            return replace(src,dst)
+        monkeypatch.setattr(pipeline.os,'replace',interleave)
+>       pipeline._publish_staged_outputs({target:first}, (), backup_dir=tmp_path/'b1')
+
+tests/test_audit_safety.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+groovemap_next/pipeline.py:95: in _publish_staged_outputs
+    os.replace(prepared, destination)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+src = PosixPath('/tmp/pytest-of-agent/pytest-1/test_overlapping_publication_c0/first')
+dst = PosixPath('/tmp/pytest-of-agent/pytest-1/test_overlapping_publication_c0/曲 空白_tempo.mid')
+
+    def interleave(src,dst):
+        nonlocal attempted
+        if src == first:
+            attempted = True
+>           with pytest.raises(FileExistsError, match='publication'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE FileExistsError
+
+tests/test_audit_safety.py:32: Failed
+________________ test_source_cannot_be_output_or_stale_optional ________________
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-1/test_source_cannot_be_output_o0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fabab7c30b0>
+
+    def test_source_cannot_be_output_or_stale_optional(tmp_path, monkeypatch):
+        source = tmp_path/'song_groove.json'
+        source.write_bytes(b'RIFF-source-sentinel')
+        def should_not_run(*a,**k):
+            pytest.fail('collision must fail before inference')
+        monkeypatch.setattr(pipeline,'_transcribe',should_not_run)
+        with pytest.raises(ValueError, match='source audio'):
+>           pipeline.run_suno_drum_pipeline(source,tmp_path/'song')
+
+tests/test_audit_safety.py:48: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+groovemap_next/pipeline.py:148: in run_suno_drum_pipeline
+    detected_events, transcription_source = _transcribe(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = (PosixPath('/tmp/pytest-of-agent/pytest-1/test_source_cannot_be_output_o0/song_groove.json'),)
+k = {'sensitivity': 1.0, 'drum_model': None, 'drum_manifest': None, 'onnx_threshold': None}
+
+    def should_not_run(*a,**k):
+>       pytest.fail('collision must fail before inference')
+E       Failed: collision must fail before inference
+
+tests/test_audit_safety.py:45: Failed
+=========================== short test summary info ============================
+FAILED tests/test_audit_safety.py::test_incomplete_pcm_frame_is_rejected[1-16-\x00]
+FAILED tests/test_audit_safety.py::test_incomplete_pcm_frame_is_rejected[2-16-\x00\x00]
+FAILED tests/test_audit_safety.py::test_incomplete_pcm_frame_is_rejected[1-24-\x00\x00]
+FAILED tests/test_audit_safety.py::test_overlapping_publication_cannot_be_rolled_back_by_other_run
+FAILED tests/test_audit_safety.py::test_source_cannot_be_output_or_stale_optional
+5 failed in 0.18s

@@ -11,8 +11,18 @@ import numpy as np
 from .models import DrumEvent
 
 _PCM_SUBFORMAT_GUID = bytes.fromhex("0100000000001000800000aa00389b71")
+_FLOAT_SUBFORMAT_GUID = bytes.fromhex("0300000000001000800000aa00389b71")
 
-def _decode_pcm(raw: bytes, sample_width: int) -> np.ndarray:
+def _decode_pcm(raw: bytes, sample_width: int, *, float_pcm: bool = False) -> np.ndarray:
+    if float_pcm:
+        if sample_width != 4:
+            raise ValueError("only 32-bit IEEE float WAV is supported")
+        if len(raw) % 4:
+            raise ValueError("truncated float32 WAV sample")
+        signal = np.frombuffer(raw, dtype="<f4")
+        if not np.isfinite(signal).all():
+            raise ValueError("float WAV contains non-finite samples")
+        return signal.astype(np.float32, copy=False)
     if sample_width == 1:
         x = np.frombuffer(raw, dtype=np.uint8).astype(np.float32)
         return (x - 128.0) / 128.0
@@ -33,7 +43,7 @@ def _decode_pcm(raw: bytes, sample_width: int) -> np.ndarray:
         return np.frombuffer(raw[:usable], dtype="<i4").astype(np.float32) / 2147483648.0
     raise ValueError(f"unsupported PCM sample width: {sample_width}")
 
-def _read_pcm_wav(path: str | Path) -> tuple[bytes, int, int, int]:
+def _read_pcm_wav(path: str | Path) -> tuple[bytes, int, int, int, bool]:
     """Read RIFF/WAVE PCM including WAVE_FORMAT_EXTENSIBLE on Python 3.11."""
     data = Path(path).read_bytes()
     if len(data) < 12 or data[:4] != b"RIFF" or data[8:12] != b"WAVE":
@@ -68,17 +78,27 @@ def _read_pcm_wav(path: str | Path) -> tuple[bytes, int, int, int]:
     if channels < 1 or sample_rate < 1:
         raise ValueError("invalid WAV channel count or sample rate")
 
+    float_pcm = False
     if format_tag == 0xFFFE:
         if len(fmt) < 40:
             raise ValueError("truncated WAVE_FORMAT_EXTENSIBLE fmt chunk")
         cb_size = struct.unpack_from("<H", fmt, 16)[0]
+        if cb_size < 22:
+            raise ValueError("truncated WAVE_FORMAT_EXTENSIBLE extension")
         subformat = fmt[24:40]
-        if cb_size < 22 or subformat != _PCM_SUBFORMAT_GUID:
-            raise ValueError("only PCM WAVE_FORMAT_EXTENSIBLE is supported")
+        if subformat == _FLOAT_SUBFORMAT_GUID:
+            float_pcm = True
+        elif subformat != _PCM_SUBFORMAT_GUID:
+            raise ValueError("unsupported WAVE_FORMAT_EXTENSIBLE subformat")
+    elif format_tag == 0x0003:
+        float_pcm = True
     elif format_tag != 0x0001:
         raise ValueError(f"unsupported WAV format tag: {format_tag}")
 
-    if bits not in (8, 16, 24, 32):
+    if float_pcm:
+        if bits != 32:
+            raise ValueError("only 32-bit IEEE float WAV is supported")
+    elif bits not in (8, 16, 24, 32):
         raise ValueError(f"unsupported PCM bit depth: {bits}")
     sample_width = (bits + 7) // 8
     expected_align = channels * sample_width
@@ -86,11 +106,13 @@ def _read_pcm_wav(path: str | Path) -> tuple[bytes, int, int, int]:
         raise ValueError(
             f"unsupported WAV block alignment: {block_align} (expected {expected_align})"
         )
-    return pcm, int(channels), int(sample_rate), sample_width
+    if len(pcm) % expected_align:
+        raise ValueError("incomplete WAV frame")
+    return pcm, int(channels), int(sample_rate), sample_width, float_pcm
 
 def load_wav_mono(path: str | Path) -> tuple[np.ndarray, int]:
-    raw, channels, sr, width = _read_pcm_wav(path)
-    signal = _decode_pcm(raw, width)
+    raw, channels, sr, width, float_pcm = _read_pcm_wav(path)
+    signal = _decode_pcm(raw, width, float_pcm=float_pcm)
     if channels > 1:
         usable = len(signal) - (len(signal) % channels)
         signal = signal[:usable].reshape(-1, channels).mean(axis=1)
@@ -181,22 +203,27 @@ def transcribe_drum_stem(wav_path: str | Path, *, sensitivity: float = 1.0) -> l
         z_high, threshold=hat_th, min_gap_frames=max(1, round(0.025 * sr / hop))
     )
 
+    # Spectral-flux peaks are indexed by the START of an overlapping FFT
+    # window; this backdates attacks by roughly half the window duration.
+    # Timestamp them at the window centre to avoid a systematic 20–32 ms
+    # early MIDI trigger (48 kHz / 16 kHz respectively).
+    onset_shift_sec = 0.5 * frame_size / sr
     events: list[DrumEvent] = []
     for i in kick_idx:
         if low[i] >= 0.25 * max(mid[i], high[i], 1e-6):
             events.append(
-                DrumEvent(max(0.0, i * hop / sr), 36, _velocity(z_low[i], kick_th), "kick")
+                DrumEvent(max(0.0, i * hop / sr + onset_shift_sec), 36, _velocity(z_low[i], kick_th), "kick")
             )
     for i in snare_idx:
         if high[i] <= 2.2 * max(mid[i], 1e-6):
             events.append(
-                DrumEvent(max(0.0, i * hop / sr), 38, _velocity(z_mid[i], snare_th), "snare")
+                DrumEvent(max(0.0, i * hop / sr + onset_shift_sec), 38, _velocity(z_mid[i], snare_th), "snare")
             )
     for i in hat_idx:
         near_snare = any(abs(i - s) <= 2 for s in snare_idx)
         if not near_snare or high[i] >= 1.15 * max(mid[i], 1e-6):
             events.append(
-                DrumEvent(max(0.0, i * hop / sr), 42, _velocity(z_high[i], hat_th), "closed_hat")
+                DrumEvent(max(0.0, i * hop / sr + onset_shift_sec), 42, _velocity(z_high[i], hat_th), "closed_hat")
             )
 
     return sorted(events, key=lambda e: (e.time_sec, e.note))

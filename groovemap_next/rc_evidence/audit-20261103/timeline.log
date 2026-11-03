@@ -1,0 +1,60 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+____ test_absolute_seconds_preroll_tail_and_long_tempo_rounding[intervals0] ____
+
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-5/test_absolute_seconds_preroll_0')
+intervals = (0.15, 3.0, 0.15, 3.0, 0.15, 3.0, ...)
+
+    @pytest.mark.parametrize('intervals', [(0.15,3.0)*8, (0.5000003,0.4999997)*7200])
+    def test_absolute_seconds_preroll_tail_and_long_tempo_rounding(tmp_path,intervals):
+        beats=[2.3]
+        for interval in intervals:
+            beats.append(beats[-1]+interval)
+>       tm=build_tempo_map(BeatAnalysis(tuple(beats),(beats[3],)),repair_missing_beats=False)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_audit_timeline.py:13: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+analysis = BeatAnalysis(beats_sec=(2.3, 2.4499999999999997, 5.449999999999999, 5.6, 8.6, 8.75, 11.75, 11.9, 14.9, 15.05, 18.05, 1...349999999999998, 24.349999999999998, 24.499999999999996, 27.499999999999996), downbeats_sec=(5.6,), source='beat-this')
+ppq = 960, beats_per_bar = 4, repair_missing_beats = False
+
+    def build_tempo_map(
+        analysis: BeatAnalysis,
+        *,
+        ppq: int = 960,
+        beats_per_bar: int = 4,
+        repair_missing_beats: bool = True,
+    ) -> TempoMap:
+        beats = _clean_times(analysis.beats_sec)
+        downbeats = _clean_times(analysis.downbeats_sec)
+    
+        if repair_missing_beats:
+            beats = _repair_missing_beats(beats)
+        if len(beats) < 2:
+            raise ValueError("need at least two detected beats to build a tempo map")
+    
+        origin_idx = 0
+        if downbeats:
+            idx = _nearest_index(beats, downbeats[0])
+            typical = median([b - a for a, b in zip(beats, beats[1:])])
+            if abs(beats[idx] - downbeats[0]) <= max(0.12, typical * 0.35):
+                origin_idx = idx
+    
+        points: list[TempoPoint] = []
+        for i, (left, right) in enumerate(zip(beats, beats[1:])):
+            interval = right - left
+            if interval <= 0:
+                raise ValueError(f"non-positive beat interval at index {i}: {interval}")
+            bpm = 60.0 / interval
+            if not 20.0 <= bpm <= 400.0:
+>               raise ValueError(
+                    f"beat interval {i} implies {bpm:.3f} BPM; refusing to export "
+                    "a partial tempo map because that would break audio/MIDI alignment"
+                )
+E               ValueError: beat interval 0 implies 400.000 BPM; refusing to export a partial tempo map because that would break audio/MIDI alignment
+
+groovemap_next/tempo_map.py:94: ValueError
+=========================== short test summary info ============================
+FAILED tests/test_audit_timeline.py::test_absolute_seconds_preroll_tail_and_long_tempo_rounding[intervals0]
+1 failed, 1 passed in 5.27s
