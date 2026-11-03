@@ -17,14 +17,12 @@ dependencies = [
 [project.optional-dependencies]
 ai = [
   "beat-this>=1.1.0",
-  "soundfile>=0.12",
 ]
 onnx = [
   "onnxruntime>=1.20",
 ]
 full = [
   "beat-this>=1.1.0",
-  "soundfile>=0.12",
   "onnxruntime>=1.20",
 ]
 dev = [
