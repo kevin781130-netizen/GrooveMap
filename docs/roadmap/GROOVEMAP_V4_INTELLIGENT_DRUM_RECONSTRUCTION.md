@@ -6,6 +6,7 @@
 > - Repository：`kevin781130-netizen/GrooveMap`
 > - Product line：GrooveMap V4
 > - Status：PROPOSED — 尚未進入程式實作
+> - GitHub backlog：[#6 GrooveMap V4 研發企劃](https://github.com/kevin781130-netizen/GrooveMap/issues/6)
 > - Priority：P1 Product Expansion（須先完成 V3 基底確認）
 > - Created：2026-11-27
 > - Primary target：Windows 11 + NVIDIA RTX 5090
